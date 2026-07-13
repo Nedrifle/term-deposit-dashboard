@@ -1,0 +1,9 @@
+{
+  "name": "定期預金 利息ダッシュボード",
+  "short_name": "定期利息",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#101827",
+  "icons": []
+}
