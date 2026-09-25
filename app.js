@@ -180,12 +180,17 @@ function renderSummary() {
 
 function renderDeposits() {
   els.list.innerHTML = "";
-  const sorted = [...state.deposits].sort((a,b) => a.maturityDate.localeCompare(b.maturityDate));
+  const today = dateAtMidnight(new Date());
+  const sorted = [...state.deposits].sort((a,b) => {
+    const aMatured = today > dateAtMidnight(a.maturityDate);
+    const bMatured = today > dateAtMidnight(b.maturityDate);
+    if (aMatured !== bMatured) return aMatured ? 1 : -1;
+    return dateAtMidnight(a.maturityDate) - dateAtMidnight(b.maturityDate);
+  });
   els.empty.hidden = sorted.length > 0;
 
   sorted.forEach(deposit => {
     const node = els.template.content.cloneNode(true);
-    const today = dateAtMidnight(new Date());
     const start = dateAtMidnight(deposit.startDate);
     const maturity = dateAtMidnight(deposit.maturityDate);
     const totalDays = Math.max(1, diffDays(start, maturity));
