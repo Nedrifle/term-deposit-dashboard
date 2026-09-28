@@ -74,6 +74,11 @@ function isActiveOn(deposit, date) {
   return d > dateAtMidnight(deposit.startDate) && d <= dateAtMidnight(deposit.maturityDate);
 }
 
+function isHeldOn(deposit, date) {
+  const d = dateAtMidnight(date);
+  return d >= dateAtMidnight(deposit.startDate) && d <= dateAtMidnight(deposit.maturityDate);
+}
+
 function grossDailyInterest(deposit) {
   return Number(deposit.principal) * (Number(deposit.annualRate) / 100) / Number(deposit.dayBasis);
 }
@@ -120,15 +125,15 @@ function remainingInterest(net = true) {
   }, 0);
 }
 
-function fxGainLoss(deposits = state.deposits) {
+function fxGainLoss(deposits = state.deposits, date = new Date()) {
   return deposits.reduce((sum, d) => {
-    if (d.currency === "JPY") return sum;
+    if (d.currency === "JPY" || !isHeldOn(d, date)) return sum;
     return sum + convertToYen(Number(d.principal), d) - convertToInitialYen(Number(d.principal), d);
   }, 0);
 }
 
-function foreignDeposits() {
-  return state.deposits.filter(d => d.currency !== "JPY");
+function foreignDeposits(date = new Date()) {
+  return state.deposits.filter(d => d.currency !== "JPY" && isHeldOn(d, date));
 }
 
 function formatYen(value) {
@@ -164,8 +169,8 @@ function renderSummary() {
 
   document.querySelector("#fxGainLoss").textContent = formatYen(fxTotal);
   document.querySelector("#fxRateStatus").textContent = foreign.length
-    ? `外貨預金 ${foreign.length}件${updatedAt ? `｜最終取得 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
-    : "外貨預金なし";
+    ? `運用中の外貨預金 ${foreign.length}件${updatedAt ? `｜最終取得 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
+    : "運用中の外貨預金なし";
   fxCard.classList.toggle("positive", fxTotal > 0);
   fxCard.classList.toggle("negative", fxTotal < 0);
   document.querySelector("#todayInterest").textContent = formatYen(todayNet);
@@ -207,6 +212,11 @@ function renderDeposits() {
       principal: "元金継続",
       compound: "元利継続"
     }[deposit.afterMaturity];
+    const fxText = deposit.currency === "JPY"
+      ? `為替差損益 ${formatYen(0)}`
+      : isHeldOn(deposit, today)
+        ? `為替差損益 ${formatYen(fxGainLoss([deposit], today))}`
+        : `為替差損益 算定対象外（${status}）`;
 
     node.querySelector(".currency-badge").textContent = `${deposit.currency}・${status}`;
     node.querySelector(".deposit-title").textContent = deposit.productName;
@@ -223,7 +233,7 @@ function renderDeposits() {
     node.querySelector(".remaining-days").textContent = remaining;
     node.querySelector(".progress-bar").style.width = `${progress}%`;
     node.querySelector(".deposit-note").textContent =
-      `年利 ${deposit.annualRate}%｜税率 ${deposit.taxRate}%｜預入時 ${deposit.initialFxRate}円｜現在 ${deposit.fxRate}円｜為替差損益 ${formatYen(fxGainLoss([deposit]))}｜${afterText}`;
+      `年利 ${deposit.annualRate}%｜税率 ${deposit.taxRate}%｜預入時 ${deposit.initialFxRate}円｜現在 ${deposit.fxRate}円｜${fxText}｜${afterText}`;
 
     node.querySelector(".edit-button").addEventListener("click", () => openDialog(deposit));
     node.querySelector(".delete-button").addEventListener("click", () => {
@@ -425,7 +435,7 @@ async function fetchFxRate(currency) {
 async function refreshFxRates() {
   const foreign = foreignDeposits();
   if (!foreign.length) {
-    alert("外貨預金が登録されていません。");
+    alert("運用中の外貨預金が登録されていません。");
     return;
   }
   els.refreshFx.disabled = true;
@@ -434,8 +444,9 @@ async function refreshFxRates() {
     const currencies = [...new Set(foreign.map(d => d.currency))];
     const pairs = await Promise.all(currencies.map(async currency => [currency, await fetchFxRate(currency)]));
     const rates = Object.fromEntries(pairs);
+    const today = dateAtMidnight(new Date());
     const now = new Date().toISOString();
-    state.deposits = state.deposits.map(d => d.currency === "JPY" ? d : normalizeDeposit({
+    state.deposits = state.deposits.map(d => d.currency === "JPY" || !isHeldOn(d, today) ? d : normalizeDeposit({
       ...d,
       fxRate: rates[d.currency],
       fxUpdatedAt: now,
