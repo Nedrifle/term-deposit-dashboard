@@ -23,7 +23,13 @@
         <p class="eyebrow">FX VALUATION</p>
         <h2>為替差損益</h2>
       </div>
-      <button id="refreshFxButton" class="secondary-button">現在の為替レートを取得</button>
+      <div class="fx-rate-entry">
+        <label for="manualUsdRate">USD現在レート（1 USD = 円）</label>
+        <div class="fx-rate-controls">
+          <input id="manualUsdRate" type="number" min="0.000001" step="0.000001" inputmode="decimal" placeholder="例：157.30" />
+          <button id="applyFxRateButton" class="secondary-button">反映</button>
+        </div>
+      </div>
     </section>
 
     <section class="summary-grid">
@@ -134,8 +140,8 @@
           <select id="currency">
             <option value="JPY">JPY（円）</option>
             <option value="USD">USD（米ドル）</option>
-            <option value="EUR">EUR（ユーロ）</option>
-            <option value="AUD">AUD（豪ドル）</option>
+            <option value="EUR" disabled>EUR（既存データのみ）</option>
+            <option value="AUD" disabled>AUD（既存データのみ）</option>
           </select>
         </label>
         <label>
@@ -166,12 +172,12 @@
           <input id="taxRate" required type="number" min="0" max="100" step="0.001" value="20.315" />
         </label>
         <label>
-          預入時レート
+          預入時レート（1 USD = 円）
           <input id="initialFxRate" required type="number" min="0.000001" step="0.000001" value="1" />
           <small>預金設定時の為替レート。JPYは1。</small>
         </label>
         <label>
-          現在レート
+          現在レート（1 USD = 円）
           <input id="fxRate" required type="number" min="0.000001" step="0.000001" value="1" />
           <small>利息と元本の現在円換算に使用します。</small>
         </label>

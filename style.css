@@ -8,6 +8,9 @@ button{cursor:pointer}
 .container{width:min(1180px,calc(100% - 28px));margin:22px auto 60px}
 .fx-toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px;background:#fff;border:1px solid #dfe6f0;border-radius:20px;padding:18px 20px;box-shadow:0 14px 40px rgba(26,44,82,.06)}
 .fx-toolbar h2{margin:3px 0 0;font-size:22px}
+.fx-rate-entry{display:grid;gap:6px;min-width:min(100%,360px)}
+.fx-rate-entry label{font-size:13px;font-weight:800;color:#4b5565}
+.fx-rate-controls{display:grid;grid-template-columns:minmax(170px,1fr) auto;gap:8px}
 .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 .summary-card,.panel,.deposit-card{background:rgba(255,255,255,.94);border:1px solid #dfe6f0;box-shadow:0 14px 40px rgba(26,44,82,.06);border-radius:20px}
 .summary-card{padding:20px}
@@ -76,4 +79,5 @@ dialog form{padding:22px}
   .form-grid{grid-template-columns:1fr}
   .card-actions{width:100%}
   .card-actions button{flex:1}
+  .fx-rate-entry{width:100%}
 }

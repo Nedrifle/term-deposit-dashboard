@@ -1,5 +1,5 @@
 const STORAGE_KEY = "term-deposit-dashboard-v1";
-const SUPPORTED_FX_CURRENCIES = ["USD", "EUR", "AUD"];
+const SUPPORTED_FOREIGN_CURRENCY = "USD";
 const state = {
   deposits: loadDeposits(),
   taxMode: "net",
@@ -18,7 +18,8 @@ const els = {
   chart: document.querySelector("#interestChart"),
   profitChart: document.querySelector("#profitChart"),
   taxMode: document.querySelector("#taxMode"),
-  refreshFx: document.querySelector("#refreshFxButton"),
+  manualUsdRate: document.querySelector("#manualUsdRate"),
+  applyFxRate: document.querySelector("#applyFxRateButton"),
   export: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
 };
@@ -127,13 +128,13 @@ function remainingInterest(net = true) {
 
 function fxGainLoss(deposits = state.deposits, date = new Date()) {
   return deposits.reduce((sum, d) => {
-    if (d.currency === "JPY" || !isHeldOn(d, date)) return sum;
+    if (d.currency !== SUPPORTED_FOREIGN_CURRENCY || !isHeldOn(d, date)) return sum;
     return sum + convertToYen(Number(d.principal), d) - convertToInitialYen(Number(d.principal), d);
   }, 0);
 }
 
 function foreignDeposits(date = new Date()) {
-  return state.deposits.filter(d => d.currency !== "JPY" && isHeldOn(d, date));
+  return state.deposits.filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isHeldOn(d, date));
 }
 
 function formatYen(value) {
@@ -166,11 +167,16 @@ function renderSummary() {
   const foreign = foreignDeposits();
   const updatedValues = foreign.map(d => d.fxUpdatedAt).filter(Boolean).sort();
   const updatedAt = updatedValues[updatedValues.length - 1];
+  const currentRates = [...new Set(foreign.map(d => Number(d.fxRate)))];
+  const currentRateText = currentRates.length === 1 ? `｜現在 ${currentRates[0]}円` : currentRates.length > 1 ? "｜現在レート複数" : "";
+  if (currentRates.length === 1 && document.activeElement !== els.manualUsdRate) {
+    els.manualUsdRate.value = currentRates[0];
+  }
 
   document.querySelector("#fxGainLoss").textContent = formatYen(fxTotal);
   document.querySelector("#fxRateStatus").textContent = foreign.length
-    ? `運用中の外貨預金 ${foreign.length}件${updatedAt ? `｜最終取得 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
-    : "運用中の外貨預金なし";
+    ? `運用中のUSD預金 ${foreign.length}件${currentRateText}${updatedAt ? `｜最終反映 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
+    : "運用中のUSD預金なし";
   fxCard.classList.toggle("positive", fxTotal > 0);
   fxCard.classList.toggle("negative", fxTotal < 0);
   document.querySelector("#todayInterest").textContent = formatYen(todayNet);
@@ -214,6 +220,8 @@ function renderDeposits() {
     }[deposit.afterMaturity];
     const fxText = deposit.currency === "JPY"
       ? `為替差損益 ${formatYen(0)}`
+      : deposit.currency !== SUPPORTED_FOREIGN_CURRENCY
+        ? "為替差損益 算定対象外（未対応通貨）"
       : isHeldOn(deposit, today)
         ? `為替差損益 ${formatYen(fxGainLoss([deposit], today))}`
         : `為替差損益 算定対象外（${status}）`;
@@ -405,60 +413,26 @@ function renderProfitChart() {
     `1月1日から今日まで：利息 ${formatYen(cumulativeInterest(yearStart, today, true))} ＋ 為替差損益 ${formatYen(fxGainLoss())} ＝ ${formatYen(cumulativeProfitOn(today, yearStart, true))}`;
 }
 
-async function fetchFxRate(currency) {
-  if (currency === "JPY") return 1;
-  if (!SUPPORTED_FX_CURRENCIES.includes(currency)) throw new Error(`${currency}は自動取得に未対応です。`);
-  const providers = [
-    async () => {
-      const response = await fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(currency)}&to=JPY`);
-      if (!response.ok) throw new Error("Frankfurter failed");
-      const data = await response.json();
-      return Number(data.rates && data.rates.JPY);
-    },
-    async () => {
-      const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(currency)}`);
-      if (!response.ok) throw new Error("Open ER API failed");
-      const data = await response.json();
-      return Number(data.rates && data.rates.JPY);
-    },
-  ];
-
-  for (const provider of providers) {
-    try {
-      const rate = await provider();
-      if (rate) return rate;
-    } catch (e) {}
-  }
-  throw new Error(`${currency}の為替レートを取得できませんでした。`);
-}
-
-async function refreshFxRates() {
-  const foreign = foreignDeposits();
-  if (!foreign.length) {
-    alert("運用中の外貨預金が登録されていません。");
+function applyManualUsdRate() {
+  const rate = Number(els.manualUsdRate.value);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    alert("USDの現在レートを正しく入力してください。");
     return;
   }
-  els.refreshFx.disabled = true;
-  els.refreshFx.textContent = "取得中...";
-  try {
-    const currencies = [...new Set(foreign.map(d => d.currency))];
-    const pairs = await Promise.all(currencies.map(async currency => [currency, await fetchFxRate(currency)]));
-    const rates = Object.fromEntries(pairs);
-    const today = dateAtMidnight(new Date());
-    const now = new Date().toISOString();
-    state.deposits = state.deposits.map(d => d.currency === "JPY" || !isHeldOn(d, today) ? d : normalizeDeposit({
-      ...d,
-      fxRate: rates[d.currency],
-      fxUpdatedAt: now,
-    }));
-    saveDeposits();
-    render();
-  } catch (error) {
-    alert(error.message || "為替レートを取得できませんでした。");
-  } finally {
-    els.refreshFx.disabled = false;
-    els.refreshFx.textContent = "現在の為替レートを取得";
+  const foreign = foreignDeposits();
+  if (!foreign.length) {
+    alert("運用中のUSD預金が登録されていません。");
+    return;
   }
+  const today = dateAtMidnight(new Date());
+  const now = new Date().toISOString();
+  state.deposits = state.deposits.map(d => d.currency !== SUPPORTED_FOREIGN_CURRENCY || !isHeldOn(d, today) ? d : normalizeDeposit({
+    ...d,
+    fxRate: rate,
+    fxUpdatedAt: now,
+  }));
+  saveDeposits();
+  render();
 }
 
 function render() {
@@ -538,9 +512,7 @@ els.taxMode.addEventListener("change", e => {
   state.taxMode = e.target.value;
   renderChart();
 });
-els.refreshFx.addEventListener("click", () => {
-  refreshFxRates();
-});
+els.applyFxRate.addEventListener("click", applyManualUsdRate);
 document.querySelector("#currency").addEventListener("change", e => {
   if (e.target.value === "JPY") {
     document.querySelector("#initialFxRate").value = "1";
