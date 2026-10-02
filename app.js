@@ -164,7 +164,7 @@ function renderSummary() {
   const principalYen = active.reduce((sum, d) => sum + convertToYen(Number(d.principal), d), 0);
   const fxTotal = fxGainLoss();
   const fxCard = document.querySelector(".fx-featured");
-  const foreign = foreignDeposits();
+  const foreign = foreignDeposits(); const foreignPrincipal = foreign.reduce((sum, d) => sum + Number(d.principal), 0); const foreignPrincipalText = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 }).format(foreignPrincipal);
   const updatedValues = foreign.map(d => d.fxUpdatedAt).filter(Boolean).sort();
   const updatedAt = updatedValues[updatedValues.length - 1];
   const currentRates = [...new Set(foreign.map(d => Number(d.fxRate)))];
@@ -175,7 +175,7 @@ function renderSummary() {
 
   document.querySelector("#fxGainLoss").textContent = formatYen(fxTotal);
   document.querySelector("#fxRateStatus").textContent = foreign.length
-    ? `運用中のUSD預金 ${foreign.length}件${currentRateText}${updatedAt ? `｜最終反映 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
+    ? `運用中のUSD預金 ${foreign.length}件（元本総額 ${foreignPrincipalText} USD）${currentRateText}${updatedAt ? `｜最終反映 ${new Date(updatedAt).toLocaleString("ja-JP")}` : ""}`
     : "運用中のUSD預金なし";
   fxCard.classList.toggle("positive", fxTotal > 0);
   fxCard.classList.toggle("negative", fxTotal < 0);
@@ -419,7 +419,7 @@ function applyManualUsdRate() {
     alert("USDの現在レートを正しく入力してください。");
     return;
   }
-  const foreign = foreignDeposits();
+  const foreign = foreignDeposits(); const foreignPrincipal = foreign.reduce((sum, d) => sum + Number(d.principal), 0); const foreignPrincipalText = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 }).format(foreignPrincipal);
   if (!foreign.length) {
     alert("運用中のUSD預金が登録されていません。");
     return;
