@@ -56,10 +56,13 @@ canvas{width:100%;min-width:700px;height:280px;display:block}
 .deposit-title{margin:5px 0 1px;font-size:17px}
 .deposit-subtitle{margin:0;color:#667085;font-size:13px}
 .card-actions{display:flex;gap:8px}
-.deposit-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.deposit-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:8px;margin:10px 0}
 .deposit-metrics div{background:#f7f9fc;border-radius:6px;padding:8px 9px}
 .deposit-metrics span{display:block;color:#667085;font-size:12px}
 .deposit-metrics strong{display:block;margin-top:4px}
+.deposit-metrics small{display:block;margin-top:2px;color:#667085;font-size:11px}
+.deposit-metrics .principal-fx-metric.positive strong{color:#087443}
+.deposit-metrics .principal-fx-metric.negative strong{color:#b42318}
 .progress-track{height:6px;background:#e9eef6;border-radius:999px;overflow:hidden}
 .progress-bar{height:100%;background:linear-gradient(90deg,#2f6fed,#63a4ff)}
 .deposit-note{margin:8px 0 0;color:#667085;font-size:12px}

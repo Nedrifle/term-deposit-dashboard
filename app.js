@@ -108,6 +108,16 @@ function grossDailyInterest(deposit) {
   return Number(deposit.principal) * (Number(deposit.annualRate) / 100) / Number(deposit.dayBasis);
 }
 
+function accruedInterestDays(deposit, date = new Date()) {
+  const start = dateAtMidnight(deposit.startDate);
+  const end = new Date(Math.min(dateAtMidnight(date), dateAtMidnight(deposit.maturityDate)));
+  return Math.max(0, diffDays(start, end));
+}
+
+function accruedGrossInterest(deposit, date = new Date()) {
+  return grossDailyInterest(deposit) * accruedInterestDays(deposit, date);
+}
+
 function netDailyInterest(deposit) {
   return grossDailyInterest(deposit) * (1 - Number(deposit.taxRate) / 100);
 }
@@ -118,6 +128,11 @@ function convertToYen(value, deposit) {
 
 function convertToInitialYen(value, deposit) {
   return value * Number(deposit.initialFxRate || deposit.fxRate || 1);
+}
+
+function principalFxGainLoss(deposit) {
+  if (deposit.currency === "JPY") return 0;
+  return convertToYen(Number(deposit.principal), deposit) - convertToInitialYen(Number(deposit.principal), deposit);
 }
 
 function dailyInterestFor(deposit, date, net = true) {
@@ -153,7 +168,7 @@ function remainingInterest(net = true) {
 function fxGainLoss(deposits = state.deposits, date = new Date()) {
   return deposits.reduce((sum, d) => {
     if (d.currency !== SUPPORTED_FOREIGN_CURRENCY || !isHeldOn(d, date)) return sum;
-    return sum + convertToYen(Number(d.principal), d) - convertToInitialYen(Number(d.principal), d);
+    return sum + principalFxGainLoss(d);
   }, 0);
 }
 
@@ -248,6 +263,8 @@ function renderDeposits() {
     const grossAtMaturity = grossDailyInterest(deposit) * interestDays;
     const netAtMaturity = netDailyInterest(deposit) * interestDays;
     const todayNetNative = isActiveOn(deposit, today) ? netDailyInterest(deposit) : 0;
+    const accruedGrossNative = accruedGrossInterest(deposit, today);
+    const accruedGrossYen = convertToYen(accruedGrossNative, deposit);
     const status = today <= start ? "開始前" : today > maturity ? "満期済み" : "運用中";
     const remaining = today > maturity ? "満期済み" : `${Math.max(0,diffDays(today,maturity))}日`;
     const afterText = {
@@ -255,13 +272,9 @@ function renderDeposits() {
       principal: "元金継続",
       compound: "元利継続"
     }[deposit.afterMaturity];
-    const fxText = deposit.currency === "JPY"
-      ? `為替差損益 ${formatYen(0)}`
-      : deposit.currency !== SUPPORTED_FOREIGN_CURRENCY
-        ? "為替差損益 算定対象外（未対応通貨）"
-      : isHeldOn(deposit, today)
-        ? `為替差損益 ${formatYen(fxGainLoss([deposit], today))}`
-        : `為替差損益 算定対象外（${status}）`;
+    const rateText = deposit.currency === "JPY"
+      ? ""
+      : `｜預入時 ${deposit.initialFxRate}円｜現在 ${deposit.fxRate}円`;
 
     node.querySelector(".currency-badge").textContent = `${deposit.currency}・${status}`;
     node.querySelector(".deposit-title").textContent = deposit.productName;
@@ -272,13 +285,25 @@ function renderDeposits() {
     node.querySelector(".daily-value").textContent = deposit.currency === "JPY"
       ? `${formatYen(todayNetNative)} / 日`
       : `${formatNative(todayNetNative, deposit.currency)}（${formatYen(convertToYen(todayNetNative, deposit))}） / 日`;
+    node.querySelector(".accrued-interest-value").textContent = formatYenPrecise(accruedGrossYen);
+    const accruedDetail = node.querySelector(".accrued-interest-detail");
+    accruedDetail.hidden = deposit.currency === "JPY";
+    accruedDetail.textContent = deposit.currency === "JPY"
+      ? ""
+      : `${formatNative(accruedGrossNative, deposit.currency)} × ${deposit.fxRate}円`;
+    const fxMetric = node.querySelector(".principal-fx-metric");
+    const individualFxGainLoss = principalFxGainLoss(deposit);
+    fxMetric.hidden = deposit.currency === "JPY";
+    fxMetric.querySelector(".principal-fx-value").textContent = formatYen(individualFxGainLoss);
+    fxMetric.classList.toggle("positive", individualFxGainLoss > 0);
+    fxMetric.classList.toggle("negative", individualFxGainLoss < 0);
     node.querySelector(".maturity-value").textContent = deposit.currency === "JPY"
       ? formatYen(Number(deposit.principal) + netAtMaturity)
       : `${formatNative(Number(deposit.principal) + netAtMaturity, deposit.currency)}（${formatYen(convertToYen(Number(deposit.principal) + netAtMaturity, deposit))}）`;
     node.querySelector(".remaining-days").textContent = remaining;
     node.querySelector(".progress-bar").style.width = `${progress}%`;
     node.querySelector(".deposit-note").textContent =
-      `年利 ${deposit.annualRate}%｜税率 ${deposit.taxRate}%｜預入時 ${deposit.initialFxRate}円｜現在 ${deposit.fxRate}円｜${fxText}｜${afterText}`;
+      `年利 ${deposit.annualRate}%｜税率 ${deposit.taxRate}%${rateText}｜${afterText}`;
 
     node.querySelector(".edit-button").addEventListener("click", () => openDialog(deposit));
     node.querySelector(".delete-button").addEventListener("click", () => {

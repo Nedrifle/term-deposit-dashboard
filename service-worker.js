@@ -1,4 +1,4 @@
-const CACHE = "term-deposit-app-v6";
+const CACHE = "term-deposit-app-v7";
 const ASSETS = ["./","./index.html","./style.css","./app.js","./manifest.json"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
