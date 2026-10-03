@@ -62,7 +62,6 @@ canvas{width:100%;min-width:700px;height:280px;display:block}
 .deposit-metrics div{background:#f7f9fc;border-radius:6px;padding:8px 9px}
 .deposit-metrics span{display:block;color:#667085;font-size:12px}
 .deposit-metrics strong{display:block;margin-top:4px}
-.deposit-metrics small{display:block;margin-top:2px;color:#667085;font-size:11px}
 .deposit-metrics .principal-fx-metric.positive strong{color:#087443}
 .deposit-metrics .principal-fx-metric.negative strong{color:#b42318}
 .progress-track{height:6px;background:#e9eef6;border-radius:999px;overflow:hidden}

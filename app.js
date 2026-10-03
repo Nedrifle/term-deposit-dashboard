@@ -114,8 +114,8 @@ function accruedInterestDays(deposit, date = new Date()) {
   return Math.max(0, diffDays(start, end));
 }
 
-function accruedGrossInterest(deposit, date = new Date()) {
-  return grossDailyInterest(deposit) * accruedInterestDays(deposit, date);
+function accruedNetInterest(deposit, date = new Date()) {
+  return netDailyInterest(deposit) * accruedInterestDays(deposit, date);
 }
 
 function netDailyInterest(deposit) {
@@ -263,8 +263,8 @@ function renderDeposits() {
     const grossAtMaturity = grossDailyInterest(deposit) * interestDays;
     const netAtMaturity = netDailyInterest(deposit) * interestDays;
     const todayNetNative = isActiveOn(deposit, today) ? netDailyInterest(deposit) : 0;
-    const accruedGrossNative = accruedGrossInterest(deposit, today);
-    const accruedGrossYen = convertToYen(accruedGrossNative, deposit);
+    const accruedNetNative = accruedNetInterest(deposit, today);
+    const accruedNetYen = convertToYen(accruedNetNative, deposit);
     const status = today <= start ? "開始前" : today > maturity ? "満期済み" : "運用中";
     const remaining = today > maturity ? "満期済み" : `${Math.max(0,diffDays(today,maturity))}日`;
     const afterText = {
@@ -285,12 +285,7 @@ function renderDeposits() {
     node.querySelector(".daily-value").textContent = deposit.currency === "JPY"
       ? `${formatYen(todayNetNative)} / 日`
       : `${formatNative(todayNetNative, deposit.currency)}（${formatYen(convertToYen(todayNetNative, deposit))}） / 日`;
-    node.querySelector(".accrued-interest-value").textContent = formatYenPrecise(accruedGrossYen);
-    const accruedDetail = node.querySelector(".accrued-interest-detail");
-    accruedDetail.hidden = deposit.currency === "JPY";
-    accruedDetail.textContent = deposit.currency === "JPY"
-      ? ""
-      : `${formatNative(accruedGrossNative, deposit.currency)} × ${deposit.fxRate}円`;
+    node.querySelector(".accrued-interest-value").textContent = formatYenPrecise(accruedNetYen);
     const fxMetric = node.querySelector(".principal-fx-metric");
     const individualFxGainLoss = principalFxGainLoss(deposit);
     fxMetric.hidden = deposit.currency === "JPY";
