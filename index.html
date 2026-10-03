@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style-v12.css" />
 </head>
 <body>
   <header class="app-header">
@@ -95,7 +95,7 @@
       <div class="chart-shell">
         <canvas id="yieldChart" width="1000" height="260" aria-label="運用元本の利回り構成グラフ"></canvas>
       </div>
-      <div id="yieldBreakdown" class="daily-breakdown"></div>
+      <div id="yieldBreakdown" class="daily-breakdown">グラフを読み込んでいます...</div>
     </section>
 
     <section class="panel">
@@ -266,6 +266,16 @@
     </article>
   </template>
 
-  <script src="app.js?v=11"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => registration.unregister());
+      });
+    }
+    if ("caches" in window) {
+      caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+    }
+  </script>
+  <script src="app-v12.js"></script>
 </body>
 </html>
