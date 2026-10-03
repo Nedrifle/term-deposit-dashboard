@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v14.css" />
+  <link rel="stylesheet" href="style-v15.css" />
 </head>
 <body>
   <header class="app-header">
@@ -60,7 +60,7 @@
 
     <section class="summary-grid">
       <article class="summary-card fx-featured">
-        <span>元本の為替差損益</span>
+        <span>為替差損益合計</span>
         <strong id="fxGainLoss">¥0</strong>
         <small id="fxRateStatus">外貨預金なし</small>
       </article>
@@ -211,6 +211,16 @@
           <small>利息と元本の現在円換算に使用します。</small>
         </label>
         <label>
+          利息受取時の為替レート（1 USD = 円）
+          <input id="interestReceiptFxRate" type="number" min="0.000001" step="0.000001" inputmode="decimal" />
+          <small>満期後の税引後利息の円換算に使用します。</small>
+        </label>
+        <label>
+          円転時為替レート（1 USD = 円）
+          <input id="conversionFxRate" type="number" min="0.000001" step="0.000001" inputmode="decimal" />
+          <small>満期後の元本・利息の確定為替差損益に使用します。</small>
+        </label>
+        <label>
           満期後
           <select id="afterMaturity">
             <option value="close">満期解約</option>
@@ -253,6 +263,10 @@
           <span>元本の為替差損益</span>
           <strong class="principal-fx-value"></strong>
         </div>
+        <div class="interest-fx-metric">
+          <span>利息の為替差損益</span>
+          <strong class="interest-fx-value"></strong>
+        </div>
         <div><span>満期予定額</span><strong class="maturity-value"></strong></div>
         <div><span>満期まで</span><strong class="remaining-days"></strong></div>
       </div>
@@ -271,6 +285,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v14.js"></script>
+  <script src="app-v15.js"></script>
 </body>
 </html>
