@@ -1,5 +1,6 @@
 const STORAGE_KEY = "term-deposit-dashboard-v1";
 const SURPLUS_STORAGE_KEY = "term-deposit-surplus-v1";
+const SURPLUS_TAX_RATE = 20.315;
 const SUPPORTED_FOREIGN_CURRENCY = "USD";
 const state = {
   deposits: loadDeposits(),
@@ -25,6 +26,8 @@ const els = {
   surplusAmount: document.querySelector("#surplusAmount"),
   surplusAnnualRate: document.querySelector("#surplusAnnualRate"),
   surplusDailyInterest: document.querySelector("#surplusDailyInterest"),
+  surplusDailyInterestNet: document.querySelector("#surplusDailyInterestNet"),
+  clearSurplus: document.querySelector("#clearSurplusButton"),
   export: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
 };
@@ -218,7 +221,9 @@ function renderSummary() {
 
 function renderSurplusFunds() {
   const dailyInterest = state.surplusFunds.amount * (state.surplusFunds.annualRate / 100) / 365;
+  const netDailyInterest = dailyInterest * (1 - SURPLUS_TAX_RATE / 100);
   els.surplusDailyInterest.textContent = formatYenPrecise(dailyInterest);
+  els.surplusDailyInterestNet.textContent = `（税引後 ${formatYenPrecise(netDailyInterest)}）`;
 }
 
 function renderDeposits() {
@@ -555,6 +560,13 @@ els.applyFxRate.addEventListener("click", applyManualUsdRate);
     saveSurplusFunds();
     renderSurplusFunds();
   });
+});
+els.clearSurplus.addEventListener("click", () => {
+  state.surplusFunds = { amount: 0, annualRate: 0 };
+  localStorage.removeItem(SURPLUS_STORAGE_KEY);
+  els.surplusAmount.value = "";
+  els.surplusAnnualRate.value = "";
+  renderSurplusFunds();
 });
 document.querySelector("#currency").addEventListener("change", e => {
   if (e.target.value === "JPY") {

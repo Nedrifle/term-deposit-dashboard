@@ -11,7 +11,6 @@
 <body>
   <header class="app-header">
     <div>
-      <p class="eyebrow">TERM DEPOSIT DASHBOARD</p>
       <h1>定期預金 利息ダッシュボード</h1>
     </div>
     <button id="addDepositButton" class="primary-button">＋ 定期を登録</button>
@@ -19,9 +18,9 @@
 
   <main class="container">
     <section class="surplus-panel">
-      <div>
-        <p class="eyebrow">SURPLUS FUNDS</p>
+      <div class="surplus-heading">
         <h2>余剰資金</h2>
+        <button id="clearSurplusButton" class="compact-button" type="button">入力を消去</button>
       </div>
       <div class="surplus-fields">
         <label>
@@ -41,14 +40,13 @@
         <div class="surplus-result">
           <span>1日当たり利息</span>
           <strong id="surplusDailyInterest">¥0.00</strong>
-          <small>365日基準</small>
+          <small id="surplusDailyInterestNet">（税引後 ¥0.00）</small>
         </div>
       </div>
     </section>
 
     <section class="fx-toolbar">
       <div>
-        <p class="eyebrow">FX VALUATION</p>
         <h2>為替差損益</h2>
       </div>
       <div class="fx-rate-entry">
@@ -91,7 +89,6 @@
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">CUMULATIVE P/L</p>
           <h2>今年の累計損益</h2>
         </div>
       </div>
@@ -104,7 +101,6 @@
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">DAILY INTEREST</p>
           <h2>今後30日の日次利息</h2>
         </div>
         <div class="toolbar">
@@ -126,7 +122,6 @@
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <p class="eyebrow">DEPOSITS</p>
           <h2>登録済み定期預金</h2>
         </div>
         <div class="toolbar">
@@ -146,7 +141,6 @@
     <form id="depositForm" method="dialog">
       <div class="dialog-heading">
         <div>
-          <p class="eyebrow">ADD / EDIT</p>
           <h2 id="dialogTitle">定期預金を登録</h2>
         </div>
         <button type="button" id="closeDialogButton" class="icon-button" aria-label="閉じる">×</button>
