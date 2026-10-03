@@ -400,15 +400,16 @@ function renderYieldChart() {
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
   const today = dateAtMidnight(new Date());
-  const active = state.deposits
-    .filter(deposit => isActiveOn(deposit, today))
+  const activeDeposits = state.deposits.filter(deposit => isActiveOn(deposit, today));
+  const active = activeDeposits
     .map(deposit => ({
       deposit,
       principalYen: convertToYen(Number(deposit.principal), deposit),
       annualRate: Number(deposit.annualRate),
     }))
-    .filter(item => item.principalYen > 0)
+    .filter(item => Number.isFinite(item.principalYen) && item.principalYen > 0 && Number.isFinite(item.annualRate) && item.annualRate >= 0)
     .sort((a, b) => b.annualRate - a.annualRate);
+  const invalidCount = activeDeposits.length - active.length;
   const totalPrincipal = active.reduce((sum, item) => sum + item.principalYen, 0);
   const averageYield = totalPrincipal
     ? active.reduce((sum, item) => sum + item.principalYen * item.annualRate, 0) / totalPrincipal
@@ -448,8 +449,13 @@ function renderYieldChart() {
   if (!active.length) {
     ctx.fillStyle = "#8a94a6";
     ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
-    ctx.fillText("運用中の定期預金がありません。", padding.left + 12, padding.top + plotH / 2);
-    document.querySelector("#yieldBreakdown").textContent = "運用元本合計 ￥0｜平均運用利回り 0.000%";
+    const emptyText = invalidCount
+      ? "登録内容を確認してください。"
+      : "運用中の定期預金がありません。";
+    ctx.fillText(emptyText, padding.left + 12, padding.top + plotH / 2);
+    document.querySelector("#yieldBreakdown").textContent = invalidCount
+      ? `グラフに表示できない預金 ${invalidCount}件`
+      : "運用元本合計 ￥0｜平均運用利回り 0.000%";
     return;
   }
 
@@ -498,7 +504,7 @@ function renderYieldChart() {
   ctx.fillText(`平均 ${averageYield.toFixed(3)}%`, padding.left + 8, Math.max(padding.top + 14, averageY - 7));
 
   document.querySelector("#yieldBreakdown").textContent =
-    `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件`;
+    `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件${invalidCount ? `｜要確認 ${invalidCount}件` : ""}`;
 }
 
 function cumulativeProfitOn(date, yearStart, net = true) {
