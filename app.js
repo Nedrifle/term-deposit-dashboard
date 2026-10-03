@@ -20,6 +20,7 @@ const els = {
   template: document.querySelector("#depositCardTemplate"),
   chart: document.querySelector("#interestChart"),
   profitChart: document.querySelector("#profitChart"),
+  yieldChart: document.querySelector("#yieldChart"),
   taxMode: document.querySelector("#taxMode"),
   manualUsdRate: document.querySelector("#manualUsdRate"),
   applyFxRate: document.querySelector("#applyFxRateButton"),
@@ -185,6 +186,12 @@ function formatYen(value) {
 function formatYenPrecise(value) {
   return new Intl.NumberFormat("ja-JP", {
     style: "currency", currency: "JPY", minimumFractionDigits: 2, maximumFractionDigits: 2
+  }).format(value || 0);
+}
+
+function formatCompactYen(value) {
+  return new Intl.NumberFormat("ja-JP", {
+    style: "currency", currency: "JPY", notation: "compact", maximumFractionDigits: 1
   }).format(value || 0);
 }
 
@@ -382,6 +389,118 @@ function renderChart() {
     changes.length ? `利息が変わる日：${changes.join(" ／ ")}` : "今後30日の日次利息は一定です。";
 }
 
+function renderYieldChart() {
+  const canvas = els.yieldChart;
+  const ctx = canvas.getContext("2d");
+  const cssWidth = Math.max(320, canvas.parentElement.clientWidth);
+  const ratio = window.devicePixelRatio || 1;
+  const width = cssWidth;
+  const height = 260;
+  const padding = { left: 66, right: 24, top: 24, bottom: 54 };
+  const plotW = width - padding.left - padding.right;
+  const plotH = height - padding.top - padding.bottom;
+  const today = dateAtMidnight(new Date());
+  const active = state.deposits
+    .filter(deposit => isActiveOn(deposit, today))
+    .map(deposit => ({
+      deposit,
+      principalYen: convertToYen(Number(deposit.principal), deposit),
+      annualRate: Number(deposit.annualRate),
+    }))
+    .filter(item => item.principalYen > 0)
+    .sort((a, b) => b.annualRate - a.annualRate);
+  const totalPrincipal = active.reduce((sum, item) => sum + item.principalYen, 0);
+  const averageYield = totalPrincipal
+    ? active.reduce((sum, item) => sum + item.principalYen * item.annualRate, 0) / totalPrincipal
+    : 0;
+  const maxYield = Math.max(...active.map(item => item.annualRate), 1) * 1.15;
+  const yFor = value => padding.top + plotH * (1 - value / maxYield);
+
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(ratio, ratio);
+  ctx.clearRect(0, 0, width, height);
+  ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif";
+
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.fillStyle = "#667085";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const value = maxYield * (1 - i / 4);
+    const y = padding.top + plotH * i / 4;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.fillText(`${value.toFixed(value < 1 ? 2 : 1)}%`, 8, y + 4);
+  }
+
+  const principalTicks = width < 500 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1];
+  principalTicks.forEach(portion => {
+    const x = padding.left + plotW * portion;
+    const label = formatCompactYen(totalPrincipal * portion);
+    const labelWidth = ctx.measureText(label).width;
+    ctx.fillText(label, Math.min(width - padding.right - labelWidth, Math.max(padding.left, x - labelWidth / 2)), height - 20);
+  });
+
+  if (!active.length) {
+    ctx.fillStyle = "#8a94a6";
+    ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("運用中の定期預金がありません。", padding.left + 12, padding.top + plotH / 2);
+    document.querySelector("#yieldBreakdown").textContent = "運用元本合計 ￥0｜平均運用利回り 0.000%";
+    return;
+  }
+
+  let cumulativePrincipal = 0;
+  const segments = active.map(item => {
+    const startX = padding.left + plotW * cumulativePrincipal / totalPrincipal;
+    cumulativePrincipal += item.principalYen;
+    const endX = padding.left + plotW * cumulativePrincipal / totalPrincipal;
+    return { ...item, startX, endX, y: yFor(item.annualRate) };
+  });
+
+  ctx.beginPath();
+  ctx.moveTo(segments[0].startX, height - padding.bottom);
+  segments.forEach((segment, index) => {
+    if (index === 0) ctx.lineTo(segment.startX, segment.y);
+    else ctx.lineTo(segment.startX, segment.y);
+    ctx.lineTo(segment.endX, segment.y);
+  });
+  ctx.lineTo(width - padding.right, height - padding.bottom);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(47,111,237,.16)";
+  ctx.fill();
+
+  ctx.beginPath();
+  segments.forEach((segment, index) => {
+    if (index === 0) ctx.moveTo(segment.startX, segment.y);
+    else ctx.lineTo(segment.startX, segment.y);
+    ctx.lineTo(segment.endX, segment.y);
+  });
+  ctx.strokeStyle = "#2f6fed";
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
+  ctx.stroke();
+
+  const averageY = yFor(averageYield);
+  ctx.beginPath();
+  ctx.moveTo(padding.left, averageY);
+  ctx.lineTo(width - padding.right, averageY);
+  ctx.strokeStyle = "#087443";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#087443";
+  ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(`平均 ${averageYield.toFixed(3)}%`, padding.left + 8, Math.max(padding.top + 14, averageY - 7));
+
+  document.querySelector("#yieldBreakdown").textContent =
+    `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件`;
+}
+
 function cumulativeProfitOn(date, yearStart, net = true) {
   const day = dateAtMidnight(date);
   if (day < dateAtMidnight(yearStart)) return 0;
@@ -496,6 +615,7 @@ function render() {
   renderSurplusFunds();
   renderSummary();
   renderDeposits();
+  renderYieldChart();
   renderChart();
   renderProfitChart();
 }
@@ -651,6 +771,7 @@ function parseCSV(text) {
 }
 
 window.addEventListener("resize", () => {
+  renderYieldChart();
   renderChart();
   renderProfitChart();
 });
