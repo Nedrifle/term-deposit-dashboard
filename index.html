@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v15.css" />
+  <link rel="stylesheet" href="style-v16.css" />
 </head>
 <body>
   <header class="app-header">
@@ -141,6 +141,15 @@
       </div>
       <div id="depositList" class="deposit-list"></div>
       <p id="emptyMessage" class="empty-message">まだ定期預金が登録されていません。</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>為替差損益の計算明細</h2>
+        </div>
+      </div>
+      <div id="fxCalculationDetails" class="fx-calculation-list"></div>
     </section>
   </main>
 
@@ -285,6 +294,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v15.js"></script>
+  <script src="app-v16.js"></script>
 </body>
 </html>
