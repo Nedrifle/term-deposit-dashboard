@@ -1,7 +1,9 @@
 const STORAGE_KEY = "term-deposit-dashboard-v1";
+const SURPLUS_STORAGE_KEY = "term-deposit-surplus-v1";
 const SUPPORTED_FOREIGN_CURRENCY = "USD";
 const state = {
   deposits: loadDeposits(),
+  surplusFunds: loadSurplusFunds(),
   taxMode: "net",
 };
 
@@ -20,6 +22,9 @@ const els = {
   taxMode: document.querySelector("#taxMode"),
   manualUsdRate: document.querySelector("#manualUsdRate"),
   applyFxRate: document.querySelector("#applyFxRateButton"),
+  surplusAmount: document.querySelector("#surplusAmount"),
+  surplusAnnualRate: document.querySelector("#surplusAnnualRate"),
+  surplusDailyInterest: document.querySelector("#surplusDailyInterest"),
   export: document.querySelector("#exportButton"),
   importInput: document.querySelector("#importInput"),
 };
@@ -30,6 +35,22 @@ function loadDeposits() {
     if (Array.isArray(parsed)) return parsed.map(normalizeDeposit);
   } catch (e) {}
   return [];
+}
+
+function loadSurplusFunds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SURPLUS_STORAGE_KEY));
+    return {
+      amount: Math.max(0, Number(saved?.amount) || 0),
+      annualRate: Math.max(0, Number(saved?.annualRate) || 0),
+    };
+  } catch (e) {
+    return { amount: 0, annualRate: 0 };
+  }
+}
+
+function saveSurplusFunds() {
+  localStorage.setItem(SURPLUS_STORAGE_KEY, JSON.stringify(state.surplusFunds));
 }
 
 function normalizeDeposit(deposit) {
@@ -143,6 +164,12 @@ function formatYen(value) {
   }).format(value || 0);
 }
 
+function formatYenPrecise(value) {
+  return new Intl.NumberFormat("ja-JP", {
+    style: "currency", currency: "JPY", minimumFractionDigits: 2, maximumFractionDigits: 2
+  }).format(value || 0);
+}
+
 function formatNative(value, currency) {
   return new Intl.NumberFormat("ja-JP", {
     style: "currency", currency, maximumFractionDigits: currency === "JPY" ? 0 : 2
@@ -187,6 +214,11 @@ function renderSummary() {
   document.querySelector("#remainingInterestGross").textContent = `税引前 ${formatYen(remainingInterest(false))}`;
   document.querySelector("#activeDepositCount").textContent = `${active.length}件`;
   document.querySelector("#totalPrincipal").textContent = `元本合計 ${formatYen(principalYen)}`;
+}
+
+function renderSurplusFunds() {
+  const dailyInterest = state.surplusFunds.amount * (state.surplusFunds.annualRate / 100) / 365;
+  els.surplusDailyInterest.textContent = formatYenPrecise(dailyInterest);
 }
 
 function renderDeposits() {
@@ -262,13 +294,13 @@ function renderChart() {
   const cssWidth = Math.max(700, canvas.parentElement.clientWidth);
   const ratio = window.devicePixelRatio || 1;
   canvas.width = cssWidth * ratio;
-  canvas.height = 360 * ratio;
+  canvas.height = 280 * ratio;
   canvas.style.width = `${cssWidth}px`;
-  canvas.style.height = "360px";
+  canvas.style.height = "280px";
   ctx.scale(ratio, ratio);
 
   const width = cssWidth;
-  const height = 360;
+  const height = 280;
   const padding = { left: 72, right: 24, top: 22, bottom: 56 };
   const net = state.taxMode === "net";
   const today = dateAtMidnight(new Date());
@@ -339,13 +371,13 @@ function renderProfitChart() {
   const cssWidth = Math.max(700, canvas.parentElement.clientWidth);
   const ratio = window.devicePixelRatio || 1;
   canvas.width = cssWidth * ratio;
-  canvas.height = 360 * ratio;
+  canvas.height = 280 * ratio;
   canvas.style.width = `${cssWidth}px`;
-  canvas.style.height = "360px";
+  canvas.style.height = "280px";
   ctx.scale(ratio, ratio);
 
   const width = cssWidth;
-  const height = 360;
+  const height = 280;
   const padding = { left: 82, right: 24, top: 22, bottom: 56 };
   const today = dateAtMidnight(new Date());
   const yearStart = new Date(today.getFullYear(), 0, 1);
@@ -436,6 +468,7 @@ function applyManualUsdRate() {
 }
 
 function render() {
+  renderSurplusFunds();
   renderSummary();
   renderDeposits();
   renderChart();
@@ -513,6 +546,16 @@ els.taxMode.addEventListener("change", e => {
   renderChart();
 });
 els.applyFxRate.addEventListener("click", applyManualUsdRate);
+[els.surplusAmount, els.surplusAnnualRate].forEach(input => {
+  input.addEventListener("input", () => {
+    state.surplusFunds = {
+      amount: Math.max(0, Number(els.surplusAmount.value) || 0),
+      annualRate: Math.max(0, Number(els.surplusAnnualRate.value) || 0),
+    };
+    saveSurplusFunds();
+    renderSurplusFunds();
+  });
+});
 document.querySelector("#currency").addEventListener("change", e => {
   if (e.target.value === "JPY") {
     document.querySelector("#initialFxRate").value = "1";
@@ -584,4 +627,6 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./service-worker.js").catch(() => {});
 }
 
+els.surplusAmount.value = state.surplusFunds.amount || "";
+els.surplusAnnualRate.value = state.surplusFunds.annualRate || "";
 render();

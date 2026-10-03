@@ -18,6 +18,34 @@
   </header>
 
   <main class="container">
+    <section class="surplus-panel">
+      <div>
+        <p class="eyebrow">SURPLUS FUNDS</p>
+        <h2>余剰資金</h2>
+      </div>
+      <div class="surplus-fields">
+        <label>
+          余剰資金の額
+          <div class="input-with-unit">
+            <span>¥</span>
+            <input id="surplusAmount" type="number" min="0" step="1" inputmode="decimal" placeholder="0" />
+          </div>
+        </label>
+        <label>
+          期待金利（年率）
+          <div class="input-with-unit unit-right">
+            <input id="surplusAnnualRate" type="number" min="0" step="0.001" inputmode="decimal" placeholder="0.000" />
+            <span>%</span>
+          </div>
+        </label>
+        <div class="surplus-result">
+          <span>1日当たり利息</span>
+          <strong id="surplusDailyInterest">¥0.00</strong>
+          <small>365日基準</small>
+        </div>
+      </div>
+    </section>
+
     <section class="fx-toolbar">
       <div>
         <p class="eyebrow">FX VALUATION</p>
@@ -68,7 +96,7 @@
         </div>
       </div>
       <div class="chart-shell">
-        <canvas id="profitChart" width="1000" height="360" aria-label="累計損益グラフ"></canvas>
+        <canvas id="profitChart" width="1000" height="280" aria-label="累計損益グラフ"></canvas>
       </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
     </section>
@@ -90,7 +118,7 @@
         </div>
       </div>
       <div class="chart-shell">
-        <canvas id="interestChart" width="1000" height="360" aria-label="日次利息グラフ"></canvas>
+        <canvas id="interestChart" width="1000" height="280" aria-label="日次利息グラフ"></canvas>
       </div>
       <div id="dailyBreakdown" class="daily-breakdown"></div>
     </section>
