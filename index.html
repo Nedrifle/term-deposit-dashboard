@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v17.css" />
+  <link rel="stylesheet" href="style-v19.css" />
 </head>
 <body>
   <header class="app-header">
@@ -16,7 +16,17 @@
     <button id="addDepositButton" class="primary-button">＋ 定期を登録</button>
   </header>
 
+  <nav class="view-nav" aria-label="画面切り替え">
+    <div class="view-nav-inner">
+      <a href="#dashboard" data-view-link="dashboard">概要</a>
+      <a href="#active" data-view-link="active">運用中 <span id="activeNavCount">0</span></a>
+      <a href="#matured" data-view-link="matured">満期済み <span id="maturedNavCount">0</span></a>
+      <a href="#fx-details" data-view-link="fx-details">為替差損益明細</a>
+    </div>
+  </nav>
+
   <main class="container">
+    <section id="dashboardView" class="app-view">
     <section class="surplus-panel">
       <div class="surplus-heading">
         <h2>余剰資金</h2>
@@ -154,11 +164,14 @@
       </div>
       <div id="dailyBreakdown" class="daily-breakdown"></div>
     </section>
+    </section>
 
-    <section class="panel">
+    <section id="depositsView" class="app-view" hidden>
+    <section class="panel view-content-panel">
       <div class="panel-heading">
         <div>
-          <h2>登録済み定期預金</h2>
+          <p class="view-eyebrow">定期預金</p>
+          <h2 id="depositViewTitle">運用中の定期預金</h2>
         </div>
         <div class="toolbar">
           <button id="exportButton" class="secondary-button">CSV出力</button>
@@ -171,14 +184,18 @@
       <div id="depositList" class="deposit-list"></div>
       <p id="emptyMessage" class="empty-message">まだ定期預金が登録されていません。</p>
     </section>
+    </section>
 
-    <section class="panel">
+    <section id="fxDetailsView" class="app-view" hidden>
+    <section class="panel view-content-panel">
       <div class="panel-heading">
         <div>
+          <p class="view-eyebrow">為替関連</p>
           <h2>為替差損益の計算明細</h2>
         </div>
       </div>
       <div id="fxCalculationDetails" class="fx-calculation-list"></div>
+    </section>
     </section>
   </main>
 
@@ -323,6 +340,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v18.js"></script>
+  <script src="app-v19.js"></script>
 </body>
 </html>
