@@ -1,14 +1,21 @@
 const STORAGE_KEY = "term-deposit-dashboard-v1";
 const SURPLUS_STORAGE_KEY = "term-deposit-surplus-v1";
 const FX_HEDGE_STORAGE_KEY = "term-deposit-fx-hedge-v1";
+const OWNERS_STORAGE_KEY = "term-deposit-owners-v1";
+const OWNER_SETTINGS_KEY = "term-deposit-owner-settings-v1";
+const DEFAULT_OWNER_ID = "self";
+let owners = loadOwners();
+let selectedOwnerId = localStorage.getItem("term-deposit-selected-owner-v1") || "all";
+if (selectedOwnerId !== "all" && !owners.some(owner => owner.id === selectedOwnerId)) selectedOwnerId = "all";
+let ownerSettings = loadOwnerSettings();
 const SURPLUS_TAX_RATE = 20.315;
 const SUPPORTED_FOREIGN_CURRENCY = "USD";
 const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details"]);
 let currentView = viewFromHash();
 const state = {
   deposits: loadDeposits(),
-  surplusFunds: loadSurplusFunds(),
-  fxHedge: loadFxHedge(),
+  surplusFunds: scopedSettings("surplusFunds"),
+  fxHedge: scopedSettings("fxHedge"),
   taxMode: "net",
 };
 
@@ -46,6 +53,69 @@ const els = {
   maturedNavCount: document.querySelector("#maturedNavCount"),
   viewLinks: [...document.querySelectorAll("[data-view-link]")],
 };
+
+function loadOwners() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OWNERS_STORAGE_KEY));
+    if (Array.isArray(saved) && saved.length && saved.every(o => o.id && typeof o.name === "string") && new Set(saved.map(o => o.id)).size === saved.length) {
+      if (!saved.some(o => o.id === DEFAULT_OWNER_ID)) saved.unshift({ id: DEFAULT_OWNER_ID, name: "本人" });
+      return saved;
+    }
+  } catch (e) {}
+  return [{ id: DEFAULT_OWNER_ID, name: "本人" }];
+}
+
+function loadOwnerSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OWNER_SETTINGS_KEY));
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) return saved;
+  } catch (e) {}
+  return { [DEFAULT_OWNER_ID]: { surplusFunds: loadSurplusFunds(), fxHedge: loadFxHedge() } };
+}
+
+function scopedSettings(key) {
+  const empty = key === "surplusFunds" ? { amount: 0, annualRate: 0 } : { settledProfit: 0, unsettledProfit: 0 };
+  if (selectedOwnerId !== "all") return { ...empty, ...ownerSettings[selectedOwnerId]?.[key] };
+  const values = owners.map(o => ({ ...empty, ...ownerSettings[o.id]?.[key] }));
+  if (key === "fxHedge") return values.reduce((sum, value) => ({ settledProfit: sum.settledProfit + value.settledProfit, unsettledProfit: sum.unsettledProfit + value.unsettledProfit }), empty);
+  const amount = values.reduce((sum, value) => sum + value.amount, 0);
+  return { amount, annualRate: amount ? values.reduce((sum, value) => sum + value.amount * value.annualRate, 0) / amount : 0 };
+}
+
+function visibleDeposits() {
+  return state.deposits.filter(d => selectedOwnerId === "all" || d.ownerId === selectedOwnerId);
+}
+
+function ownerName(id) { return owners.find(o => o.id === id)?.name || "本人"; }
+
+function saveScopedSettings(key, value) {
+  if (selectedOwnerId === "all") return;
+  ownerSettings[selectedOwnerId] = { ...ownerSettings[selectedOwnerId], [key]: { ...value } };
+  localStorage.setItem(OWNER_SETTINGS_KEY, JSON.stringify(ownerSettings));
+}
+
+function renderOwnerControls() {
+  const selector = document.querySelector("#ownerSelector");
+  const formSelector = document.querySelector("#ownerId");
+  const previous = formSelector.value;
+  selector.replaceChildren(new Option("全員合算", "all"), ...owners.map(o => new Option(o.name, o.id)));
+  selector.value = selectedOwnerId;
+  formSelector.replaceChildren(...owners.map(o => new Option(o.name, o.id)));
+  formSelector.value = owners.some(o => o.id === previous) ? previous : DEFAULT_OWNER_ID;
+  document.querySelector("#ownerScopeLabel").textContent = selectedOwnerId === "all" ? "全員の預金を合算して表示しています。余剰資金・ヘッジ損益は各保有者の画面で入力できます。" : `${ownerName(selectedOwnerId)}さんの預金を表示しています。`;
+  document.querySelector("#renameOwnerButton").disabled = selectedOwnerId === "all";
+  [els.surplusAmount, els.surplusAnnualRate, els.clearSurplus, els.fxSettledProfit, els.fxUnsettledProfit].forEach(el => el.disabled = selectedOwnerId === "all");
+}
+
+function syncScopedInputs() {
+  state.surplusFunds = scopedSettings("surplusFunds");
+  state.fxHedge = scopedSettings("fxHedge");
+  els.surplusAmount.value = state.surplusFunds.amount || "";
+  els.surplusAnnualRate.value = state.surplusFunds.annualRate || "";
+  els.fxSettledProfit.value = state.fxHedge.settledProfit || "";
+  els.fxUnsettledProfit.value = state.fxHedge.unsettledProfit || "";
+  els.manualUsdRate.value = "";
+}
 
 function viewFromHash() {
   const view = window.location.hash.slice(1);
@@ -94,7 +164,7 @@ function loadSurplusFunds() {
 }
 
 function saveSurplusFunds() {
-  localStorage.setItem(SURPLUS_STORAGE_KEY, JSON.stringify(state.surplusFunds));
+  saveScopedSettings("surplusFunds", state.surplusFunds);
 }
 
 function loadFxHedge() {
@@ -110,7 +180,7 @@ function loadFxHedge() {
 }
 
 function saveFxHedge() {
-  localStorage.setItem(FX_HEDGE_STORAGE_KEY, JSON.stringify(state.fxHedge));
+  saveScopedSettings("fxHedge", state.fxHedge);
 }
 
 function normalizeDeposit(deposit) {
@@ -119,6 +189,7 @@ function normalizeDeposit(deposit) {
   return {
     ...deposit,
     id: deposit.id || crypto.randomUUID(),
+    ownerId: owners.some(o => o.id === deposit.ownerId) ? deposit.ownerId : DEFAULT_OWNER_ID,
     currency,
     principal: Number(deposit.principal || 0),
     annualRate: Number(deposit.annualRate || 0),
@@ -234,7 +305,7 @@ function dailyInterestFor(deposit, date, net = true) {
 }
 
 function totalInterestOn(date, net = true) {
-  return state.deposits.reduce((sum, d) => sum + dailyInterestFor(d, date, net), 0);
+  return visibleDeposits().reduce((sum, d) => sum + dailyInterestFor(d, date, net), 0);
 }
 
 function cumulativeInterest(from, to, net = true) {
@@ -245,7 +316,7 @@ function cumulativeInterest(from, to, net = true) {
   return total;
 }
 
-function fxGainLoss(deposits = state.deposits, date = new Date()) {
+function fxGainLoss(deposits = visibleDeposits(), date = new Date()) {
   return deposits.reduce((sum, d) => {
     if (d.currency !== SUPPORTED_FOREIGN_CURRENCY) return sum;
     if (isMaturedOn(d, date)) return sum + principalFxGainLoss(d, date) + interestFxGainLoss(d, date);
@@ -263,7 +334,7 @@ function totalCurrencyGainLoss() {
 }
 
 function foreignDeposits(date = new Date()) {
-  return state.deposits.filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isHeldOn(d, date));
+  return visibleDeposits().filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isHeldOn(d, date));
 }
 
 function formatYen(value) {
@@ -301,13 +372,13 @@ function renderSummary() {
   const todayGross = totalInterestOn(today, false);
   const monthNet = cumulativeInterest(monthStart, today, true);
   const monthGross = cumulativeInterest(monthStart, today, false);
-  const active = state.deposits.filter(d => isActiveOn(d, today));
+  const active = visibleDeposits().filter(d => isActiveOn(d, today));
   const principalYen = active.reduce((sum, d) => sum + convertToYen(Number(d.principal), d), 0);
   const depositFxTotal = fxGainLoss();
   const hedgeFxTotal = fxHedgeGainLoss();
   const fxTotal = depositFxTotal + hedgeFxTotal;
   const foreign = foreignDeposits();
-  const maturedForeign = state.deposits.filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isMaturedOn(d, today));
+  const maturedForeign = visibleDeposits().filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isMaturedOn(d, today));
   const settledForeign = maturedForeign.filter(d => Number(d.interestReceiptFxRate) > 0 && Number(d.conversionFxRate) > 0);
   const pendingForeign = maturedForeign.length - settledForeign.length;
   const foreignPrincipal = foreign.reduce((sum, d) => sum + Number(d.principal), 0);
@@ -345,8 +416,8 @@ function renderSummary() {
   document.querySelector("#monthInterestGross").textContent = `税引前 ${formatYen(monthGross)}`;
   document.querySelector("#activeDepositCount").textContent = `${active.length}件`;
   document.querySelector("#totalPrincipal").textContent = `元本合計 ${formatYen(principalYen)}`;
-  els.activeNavCount.textContent = state.deposits.filter(d => !isMaturedOn(d, today)).length;
-  els.maturedNavCount.textContent = state.deposits.filter(d => isMaturedOn(d, today)).length;
+  els.activeNavCount.textContent = visibleDeposits().filter(d => !isMaturedOn(d, today)).length;
+  els.maturedNavCount.textContent = visibleDeposits().filter(d => isMaturedOn(d, today)).length;
 }
 
 function renderSurplusFunds() {
@@ -360,7 +431,7 @@ function renderDeposits() {
   els.list.innerHTML = "";
   const today = dateAtMidnight(new Date());
   const showingMatured = currentView === "matured";
-  const sorted = state.deposits
+  const sorted = visibleDeposits()
     .filter(deposit => showingMatured ? isMaturedOn(deposit, today) : !isMaturedOn(deposit, today))
     .sort((a,b) => {
       const difference = dateAtMidnight(a.maturityDate) - dateAtMidnight(b.maturityDate);
@@ -397,7 +468,7 @@ function renderDeposits() {
 
     node.querySelector(".currency-badge").textContent = `${deposit.currency}・${status}`;
     node.querySelector(".deposit-title").textContent = deposit.productName;
-    node.querySelector(".deposit-subtitle").textContent = `${deposit.bankName}｜${deposit.startDate} → ${deposit.maturityDate}`;
+    node.querySelector(".deposit-subtitle").textContent = `${ownerName(deposit.ownerId)}｜${deposit.bankName}｜${deposit.startDate} → ${deposit.maturityDate}`;
     node.querySelector(".principal-value").textContent = deposit.currency === "JPY"
       ? formatYen(Number(deposit.principal))
       : `${formatNative(Number(deposit.principal), deposit.currency)}（${formatYen(Number(deposit.principal) * principalRate)}）`;
@@ -445,7 +516,7 @@ function renderDeposits() {
 function renderFxCalculationDetails() {
   els.fxCalculationDetails.innerHTML = "";
   const today = dateAtMidnight(new Date());
-  const foreign = state.deposits
+  const foreign = visibleDeposits()
     .filter(deposit => deposit.currency === SUPPORTED_FOREIGN_CURRENCY)
     .sort((a, b) => dateAtMidnight(a.maturityDate) - dateAtMidnight(b.maturityDate));
 
@@ -595,7 +666,7 @@ function renderYieldChart() {
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
   const today = dateAtMidnight(new Date());
-  const activeDeposits = state.deposits.filter(deposit => isActiveOn(deposit, today));
+  const activeDeposits = visibleDeposits().filter(deposit => isActiveOn(deposit, today));
   const active = activeDeposits
     .map(deposit => ({
       deposit,
@@ -858,7 +929,7 @@ function applyManualUsdRate() {
   }
   const today = dateAtMidnight(new Date());
   const now = new Date().toISOString();
-  state.deposits = state.deposits.map(d => d.currency !== SUPPORTED_FOREIGN_CURRENCY || !isHeldOn(d, today) ? d : normalizeDeposit({
+  state.deposits = state.deposits.map(d => d.currency !== SUPPORTED_FOREIGN_CURRENCY || !isHeldOn(d, today) || (selectedOwnerId !== "all" && d.ownerId !== selectedOwnerId) ? d : normalizeDeposit({
     ...d,
     fxRate: rate,
     fxUpdatedAt: now,
@@ -868,6 +939,7 @@ function applyManualUsdRate() {
 }
 
 function render() {
+  renderOwnerControls();
   renderSurplusFunds();
   renderSummary();
   renderDeposits();
@@ -879,6 +951,7 @@ function render() {
 
 function openDialog(deposit = null) {
   els.form.reset();
+  document.querySelector("#ownerId").value = selectedOwnerId === "all" ? DEFAULT_OWNER_ID : selectedOwnerId;
   document.querySelector("#taxRate").value = "20.315";
   document.querySelector("#dayBasis").value = "365";
   document.querySelector("#currency").value = "JPY";
@@ -914,6 +987,7 @@ els.form.addEventListener("submit", event => {
   const id = document.querySelector("#depositId").value || crypto.randomUUID();
   const deposit = {
     id,
+    ownerId: document.querySelector("#ownerId").value,
     bankName: document.querySelector("#bankName").value.trim(),
     productName: document.querySelector("#productName").value.trim(),
     currency: document.querySelector("#currency").value,
@@ -981,7 +1055,7 @@ els.applyFxRate.addEventListener("click", applyManualUsdRate);
 });
 els.clearSurplus.addEventListener("click", () => {
   state.surplusFunds = { amount: 0, annualRate: 0 };
-  localStorage.removeItem(SURPLUS_STORAGE_KEY);
+  saveSurplusFunds();
   els.surplusAmount.value = "";
   els.surplusAnnualRate.value = "";
   renderSurplusFunds();
@@ -1001,9 +1075,9 @@ document.querySelector("#currency").addEventListener("change", e => {
 });
 
 els.export.addEventListener("click", () => {
-  const headers = ["id","bankName","productName","currency","principal","annualRate","startDate","maturityDate","dayBasis","taxRate","initialFxRate","fxRate","interestReceiptFxRate","conversionFxRate","afterMaturity","fxUpdatedAt"];
+  const headers = ["id","ownerId","ownerName","bankName","productName","currency","principal","annualRate","startDate","maturityDate","dayBasis","taxRate","initialFxRate","fxRate","interestReceiptFxRate","conversionFxRate","afterMaturity","fxUpdatedAt"];
   const lines = [headers.join(",")].concat(state.deposits.map(d =>
-    headers.map(h => `"${String(d[h] ?? "").replaceAll('"','""')}"`).join(",")
+    headers.map(h => `"${String(h === "ownerName" ? ownerName(d.ownerId) : d[h] ?? "").replaceAll('"','""')}"`).join(",")
   ));
   const blob = new Blob(["\ufeff" + lines.join("\n")], {type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
@@ -1032,8 +1106,17 @@ els.importInput.addEventListener("change", async e => {
     obj.interestReceiptFxRate = Number(obj.interestReceiptFxRate || 0);
     obj.conversionFxRate = Number(obj.conversionFxRate || 0);
     obj.id = obj.id || crypto.randomUUID();
+    if (obj.ownerName) {
+      let owner = owners.find(o => o.name === obj.ownerName);
+      if (!owner) {
+        owner = { id: crypto.randomUUID(), name: obj.ownerName };
+        owners.push(owner);
+      }
+      obj.ownerId = owner.id;
+    }
     return normalizeDeposit(obj);
   });
+  localStorage.setItem(OWNERS_STORAGE_KEY, JSON.stringify(owners));
   state.deposits = imported;
   saveDeposits();
   render();
@@ -1071,3 +1154,32 @@ els.fxSettledProfit.value = state.fxHedge.settledProfit || "";
 els.fxUnsettledProfit.value = state.fxHedge.unsettledProfit || "";
 render();
 applyView();
+
+document.querySelector("#ownerSelector").addEventListener("change", event => {
+  selectedOwnerId = event.target.value;
+  localStorage.setItem("term-deposit-selected-owner-v1", selectedOwnerId);
+  syncScopedInputs();
+  render();
+});
+document.querySelector("#addOwnerButton").addEventListener("click", () => {
+  const name = prompt("預金保有者の名前を入力してください（例：父、母）。")?.trim();
+  if (!name) return;
+  if (owners.some(o => o.name === name)) return alert("同じ名前の保有者が登録されています。");
+  const owner = { id: crypto.randomUUID(), name };
+  owners.push(owner);
+  localStorage.setItem(OWNERS_STORAGE_KEY, JSON.stringify(owners));
+  selectedOwnerId = owner.id;
+  localStorage.setItem("term-deposit-selected-owner-v1", selectedOwnerId);
+  syncScopedInputs();
+  render();
+});
+document.querySelector("#renameOwnerButton").addEventListener("click", () => {
+  if (selectedOwnerId === "all") return;
+  const owner = owners.find(o => o.id === selectedOwnerId);
+  const name = prompt("保有者の名前を変更します。", owner.name)?.trim();
+  if (!name) return;
+  if (owners.some(o => o.id !== owner.id && o.name === name)) return alert("同じ名前の保有者が登録されています。");
+  owner.name = name;
+  localStorage.setItem(OWNERS_STORAGE_KEY, JSON.stringify(owners));
+  render();
+});

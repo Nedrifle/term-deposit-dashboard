@@ -126,3 +126,5 @@ dialog form{padding:22px}
   .fx-rate-entry{width:100%}
   .surplus-fields{grid-template-columns:1fr}
 }
+
+.owner-panel{margin-bottom:12px;padding:14px;background:#fff;border:1px solid #dfe6f0;border-radius:8px}.owner-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.owner-controls label{font-weight:800}.owner-controls select{width:auto;min-width:160px;max-width:100%}.owner-panel p{margin:8px 0 0;color:#667085;font-size:12px}button:disabled,input:disabled{opacity:.6;cursor:default}@media(max-width:560px){.owner-controls select{flex:1}.owner-controls button{font-size:12px}}

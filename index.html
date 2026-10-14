@@ -26,6 +26,15 @@
   </nav>
 
   <main class="container">
+    <section class="owner-panel" aria-label="預金保有者の切り替え">
+      <div class="owner-controls">
+        <label for="ownerSelector">預金保有者</label>
+        <select id="ownerSelector"></select>
+        <button id="addOwnerButton" class="secondary-button" type="button">＋ 保有者を追加</button>
+        <button id="renameOwnerButton" class="secondary-button" type="button">名前を変更</button>
+      </div>
+      <p id="ownerScopeLabel"></p>
+    </section>
     <section id="dashboardView" class="app-view">
     <section class="surplus-panel">
       <div class="surplus-heading">
@@ -211,6 +220,7 @@
       <input type="hidden" id="depositId" />
 
       <div class="form-grid">
+        <label>預金保有者<select id="ownerId" required></select></label>
         <label>
           金融機関名
           <input id="bankName" required placeholder="例：SBI新生銀行" />
