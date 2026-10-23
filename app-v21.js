@@ -781,7 +781,50 @@ function cumulativeProfitOn(date, yearStart, net = true) {
   return interest + fx;
 }
 
+function monthlyProfitRows(today = new Date()) {
+  const day = dateAtMidnight(today);
+  const year = day.getFullYear();
+  return Array.from({ length: 12 }, (_, month) => {
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 0);
+    const actualEnd = new Date(Math.min(day, end));
+    const forecastStart = new Date(Math.max(addDays(day, 1), start));
+    const actual = actualEnd >= start ? cumulativeInterest(start, actualEnd, true) : 0;
+    const forecast = forecastStart <= end ? cumulativeInterest(forecastStart, end, true) : 0;
+    return { month: month + 1, actual, forecast, total: actual + forecast,
+      status: end <= day ? "実績" : start > day ? "予測" : "実績＋予測" };
+  });
+}
+
+function renderMonthlyProfit() {
+  const body = document.querySelector("#monthlyProfitBody");
+  body.replaceChildren();
+  const rows = monthlyProfitRows();
+  const totals = { actual: 0, forecast: 0, total: 0 };
+  rows.forEach(row => {
+    const tr = document.createElement("tr");
+    const month = document.createElement("th");
+    month.scope = "row";
+    month.textContent = `${row.month}月`;
+    const status = document.createElement("small");
+    status.textContent = row.status;
+    month.appendChild(status);
+    tr.appendChild(month);
+    ["actual", "forecast", "total"].forEach(key => {
+      const td = document.createElement("td");
+      td.textContent = formatYen(row[key]);
+      totals[key] += row[key];
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+  ["actual", "forecast", "total"].forEach(key => {
+    document.querySelector(`#monthlyProfit-${key}`).textContent = formatYen(totals[key]);
+  });
+}
+
 function renderProfitChart() {
+  renderMonthlyProfit();
   const canvas = els.profitChart;
   const ctx = canvas.getContext("2d");
   const cssWidth = Math.max(700, canvas.parentElement.clientWidth);

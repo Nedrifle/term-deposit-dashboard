@@ -151,6 +151,18 @@
         <canvas id="profitChart" width="1000" height="280" aria-label="累計損益グラフ"></canvas>
       </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
+      <div class="monthly-profit">
+        <h3>月ごとの損益（利息分）</h3>
+        <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。為替・ヘッジ損益は月別履歴がないため、この表には含みません。外貨利息は年間グラフと同じ換算レートで計算します。</p>
+        <div class="monthly-profit-scroll" tabindex="0" role="region" aria-label="月ごとの損益表" aria-describedby="monthlyProfitNote">
+          <table class="monthly-profit-table">
+            <caption class="visually-hidden">今年の月別税引後利息の実績と予測</caption>
+            <thead><tr><th scope="col">月</th><th scope="col">実績</th><th scope="col">予測</th><th scope="col">合計</th></tr></thead>
+            <tbody id="monthlyProfitBody"></tbody>
+            <tfoot><tr><th scope="row">年間合計</th><td id="monthlyProfit-actual"></td><td id="monthlyProfit-forecast"></td><td id="monthlyProfit-total"></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
     </section>
 
     <section class="panel">
