@@ -557,6 +557,11 @@ function renderFxCalculationDetails() {
     badge.textContent = `USD・${status}`;
     heading.append(title, badge);
 
+    const period = document.createElement("p");
+    period.className = "fx-calculation-period";
+    const duration = Math.max(0, diffDays(deposit.startDate, deposit.maturityDate));
+    period.textContent = `運用期間：${deposit.startDate} → ${deposit.maturityDate}（${duration}日間）`;
+
     const principalDetail = document.createElement("p");
     principalDetail.textContent = !started
       ? "元本：預入開始後に算定します。"
@@ -581,7 +586,7 @@ function renderFxCalculationDetails() {
         ? "この預金の為替差損益"
         : "為替差損益（入力済み分）";
     total.textContent = `${totalLabel}：${formatYen(principalGain + interestGain)}`;
-    row.append(heading, principalDetail, interestDetail, total);
+    row.append(heading, period, principalDetail, interestDetail, total);
     els.fxCalculationDetails.appendChild(row);
   });
 }
