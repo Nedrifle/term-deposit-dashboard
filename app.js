@@ -226,16 +226,16 @@ function diffDays(from, to) {
 
 function isActiveOn(deposit, date) {
   const d = dateAtMidnight(date);
-  return d > dateAtMidnight(deposit.startDate) && d <= dateAtMidnight(deposit.maturityDate);
+  return d >= dateAtMidnight(deposit.startDate) && d < dateAtMidnight(deposit.maturityDate);
 }
 
 function isHeldOn(deposit, date) {
   const d = dateAtMidnight(date);
-  return d >= dateAtMidnight(deposit.startDate) && d <= dateAtMidnight(deposit.maturityDate);
+  return d >= dateAtMidnight(deposit.startDate) && d < dateAtMidnight(deposit.maturityDate);
 }
 
 function isMaturedOn(deposit, date = new Date()) {
-  return dateAtMidnight(date) > dateAtMidnight(deposit.maturityDate);
+  return dateAtMidnight(date) >= dateAtMidnight(deposit.maturityDate);
 }
 
 function grossDailyInterest(deposit) {
@@ -244,7 +244,8 @@ function grossDailyInterest(deposit) {
 
 function accruedInterestDays(deposit, date = new Date()) {
   const start = dateAtMidnight(deposit.startDate);
-  const end = new Date(Math.min(dateAtMidnight(date), dateAtMidnight(deposit.maturityDate)));
+  // Include today's interest, capped at the day before maturity.
+  const end = new Date(Math.min(addDays(date, 1), dateAtMidnight(deposit.maturityDate)));
   return Math.max(0, diffDays(start, end));
 }
 
@@ -458,7 +459,7 @@ function renderDeposits() {
     const interestRate = interestConversionRate(deposit, today);
     const principalRate = principalValuationRate(deposit, today);
     const accruedNetYen = accruedNetNative * interestRate;
-    const status = today <= start ? "開始前" : matured ? "満期済み" : "運用中";
+    const status = today < start ? "開始前" : matured ? "満期済み" : "運用中";
     const remaining = matured ? "満期済み" : `${Math.max(0,diffDays(today,maturity))}日`;
     const rateText = deposit.currency === "JPY"
       ? ""
