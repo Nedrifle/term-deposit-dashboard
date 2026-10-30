@@ -412,10 +412,8 @@ function renderSummary() {
     element.classList.toggle("positive", value > 0);
     element.classList.toggle("negative", value < 0);
   };
-  setProfitValue(document.querySelector("#realizedFxGainLoss"), realizedTotal);
   setProfitValue(document.querySelector("#realizedDepositFx"), breakdown.realized);
   setProfitValue(document.querySelector("#settledHedgeFx"), settledHedge);
-  setProfitValue(document.querySelector("#unrealizedFxGainLoss"), unrealizedTotal);
   setProfitValue(document.querySelector("#unrealizedDepositFx"), breakdown.unrealized);
   setProfitValue(document.querySelector("#unsettledHedgeFx"), unsettledHedge);
   setProfitValue(document.querySelector("#fxGainLoss"), fxTotal);

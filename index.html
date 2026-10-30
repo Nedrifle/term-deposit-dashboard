@@ -97,12 +97,10 @@
       <article class="summary-card fx-featured">
         <span>為替関連損益</span>
         <div class="fx-profit-lines">
-          <div class="fx-profit-line"><span>円転済み・確定損益</span><strong id="realizedFxGainLoss">¥0</strong></div>
-          <div class="fx-profit-line"><span>　預金の為替差損益</span><strong id="realizedDepositFx">¥0</strong></div>
-          <div class="fx-profit-line"><span>　ヘッジ決済損益</span><strong id="settledHedgeFx">¥0</strong></div>
-          <div class="fx-profit-line total"><span>運用中・評価損益</span><strong id="unrealizedFxGainLoss">¥0</strong></div>
-          <div class="fx-profit-line"><span>　預金の為替差損益</span><strong id="unrealizedDepositFx">¥0</strong></div>
-          <div class="fx-profit-line"><span>　ヘッジ未決済損益</span><strong id="unsettledHedgeFx">¥0</strong></div>
+          <div class="fx-profit-line"><span>預金・円転済み確定損益</span><strong id="realizedDepositFx">¥0</strong></div>
+          <div class="fx-profit-line"><span>預金・運用中評価損益</span><strong id="unrealizedDepositFx">¥0</strong></div>
+          <div class="fx-profit-line"><span>ヘッジ・決済済み損益</span><strong id="settledHedgeFx">¥0</strong></div>
+          <div class="fx-profit-line"><span>ヘッジ・未決済損益</span><strong id="unsettledHedgeFx">¥0</strong></div>
           <div class="fx-profit-line total"><span>合計</span><strong id="fxGainLoss">¥0</strong></div>
         </div>
         <small style="display:block">満期後に円転レートが未入力の預金は集計対象外です。利息の確定為替差損益には利息受取時レートも必要です。</small>
@@ -358,6 +356,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v25.js"></script>
+  <script src="app-v26.js"></script>
 </body>
 </html>
