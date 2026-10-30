@@ -317,13 +317,21 @@ function cumulativeInterest(from, to, net = true) {
   return total;
 }
 
+function depositFxBreakdown(deposits = visibleDeposits(), date = new Date()) {
+  return deposits.reduce((result, deposit) => {
+    if (deposit.currency !== SUPPORTED_FOREIGN_CURRENCY) return result;
+    if (isMaturedOn(deposit, date)) {
+      result.realized += principalFxGainLoss(deposit, date) + interestFxGainLoss(deposit, date);
+    } else if (isHeldOn(deposit, date)) {
+      result.unrealized += principalFxGainLoss(deposit, date);
+    }
+    return result;
+  }, { realized: 0, unrealized: 0 });
+}
+
 function fxGainLoss(deposits = visibleDeposits(), date = new Date()) {
-  return deposits.reduce((sum, d) => {
-    if (d.currency !== SUPPORTED_FOREIGN_CURRENCY) return sum;
-    if (isMaturedOn(d, date)) return sum + principalFxGainLoss(d, date) + interestFxGainLoss(d, date);
-    if (!isHeldOn(d, date)) return sum;
-    return sum + principalFxGainLoss(d, date);
-  }, 0);
+  const breakdown = depositFxBreakdown(deposits, date);
+  return breakdown.realized + breakdown.unrealized;
 }
 
 function fxHedgeGainLoss() {
@@ -375,9 +383,12 @@ function renderSummary() {
   const monthGross = cumulativeInterest(monthStart, today, false);
   const active = visibleDeposits().filter(d => isActiveOn(d, today));
   const principalYen = active.reduce((sum, d) => sum + convertToYen(Number(d.principal), d), 0);
-  const depositFxTotal = fxGainLoss();
-  const hedgeFxTotal = fxHedgeGainLoss();
-  const fxTotal = depositFxTotal + hedgeFxTotal;
+  const breakdown = depositFxBreakdown();
+  const settledHedge = Number(state.fxHedge.settledProfit);
+  const unsettledHedge = Number(state.fxHedge.unsettledProfit);
+  const realizedTotal = breakdown.realized + settledHedge;
+  const unrealizedTotal = breakdown.unrealized + unsettledHedge;
+  const fxTotal = realizedTotal + unrealizedTotal;
   const foreign = foreignDeposits();
   const maturedForeign = visibleDeposits().filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isMaturedOn(d, today));
   const settledForeign = maturedForeign.filter(d => Number(d.interestReceiptFxRate) > 0 && Number(d.conversionFxRate) > 0);
@@ -401,8 +412,12 @@ function renderSummary() {
     element.classList.toggle("positive", value > 0);
     element.classList.toggle("negative", value < 0);
   };
-  setProfitValue(document.querySelector("#depositFxGainLoss"), depositFxTotal);
-  setProfitValue(document.querySelector("#fxHedgeGainLoss"), hedgeFxTotal);
+  setProfitValue(document.querySelector("#realizedFxGainLoss"), realizedTotal);
+  setProfitValue(document.querySelector("#realizedDepositFx"), breakdown.realized);
+  setProfitValue(document.querySelector("#settledHedgeFx"), settledHedge);
+  setProfitValue(document.querySelector("#unrealizedFxGainLoss"), unrealizedTotal);
+  setProfitValue(document.querySelector("#unrealizedDepositFx"), breakdown.unrealized);
+  setProfitValue(document.querySelector("#unsettledHedgeFx"), unsettledHedge);
   setProfitValue(document.querySelector("#fxGainLoss"), fxTotal);
   const activeStatus = foreign.length
     ? `運用中 ${foreign.length}件（元本 ${new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 2 }).format(foreignPrincipal)} USD）｜平均預入レート ${averageInitialFxRateText}円${currentRateText}`
