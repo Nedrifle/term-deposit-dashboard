@@ -1000,12 +1000,47 @@ function renderYieldChart() {
     `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件${invalidCount ? `｜要確認 ${invalidCount}件` : ""}`;
 }
 
-function cumulativeProfitOn(date, yearStart, net = true) {
+function datedCurrencyGainLoss(date, yearStart, today = new Date()) {
+  const day = dateAtMidnight(date);
+  const start = dateAtMidnight(yearStart);
+  const current = dateAtMidnight(today);
+  if (day < start) return 0;
+  const depositRealized = visibleDeposits().reduce((sum, deposit) => {
+    if (deposit.currency !== SUPPORTED_FOREIGN_CURRENCY || !isMaturedOn(deposit, current)) return sum;
+    const maturity = dateAtMidnight(deposit.maturityDate);
+    if (maturity < start || maturity > day) return sum;
+    return sum + principalFxGainLoss(deposit, maturity) + interestFxGainLoss(deposit, maturity);
+  }, 0);
+  const fxRealized = fxScopeOwners().reduce((sum, owner) => {
+    return sum + Object.entries(fxOwnerData(owner.id).realized).reduce((monthlySum, [month, values]) => {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2026) return monthlySum;
+      const monthEnd = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
+      if (monthEnd < start || monthEnd > day) return monthlySum;
+      return monthlySum + Object.values(values).reduce((companySum, value) => companySum + (Number(value) || 0), 0);
+    }, 0);
+  }, 0);
+  // No historical valuations or dated legacy entries exist. Keep these at
+  // today's value from today onwards, as in the previous chart.
+  const currentProfit = day >= current
+    ? depositFxBreakdown(visibleDeposits(), current).unrealized + fxLedgerSummary().unsettledProfit + fxLegacyTotal()
+    : 0;
+  return depositRealized + fxRealized + currentProfit;
+}
+
+function cumulativeProfitOn(date, yearStart, net = true, today = new Date()) {
   const day = dateAtMidnight(date);
   if (day < dateAtMidnight(yearStart)) return 0;
-  const interest = cumulativeInterest(yearStart, day, net);
-  const fx = day >= dateAtMidnight(new Date()) ? totalCurrencyGainLoss() : 0;
-  return interest + fx;
+  return cumulativeInterest(yearStart, day, net) + datedCurrencyGainLoss(day, yearStart, today);
+}
+
+function profitChartPoints(yearStart, yearEnd, today = new Date()) {
+  let interest = 0;
+  const points = [];
+  for (let date = dateAtMidnight(yearStart); date <= dateAtMidnight(yearEnd); date = addDays(date, 1)) {
+    interest += totalInterestOn(date, true);
+    points.push({ date, value: interest + datedCurrencyGainLoss(date, yearStart, today) });
+  }
+  return points;
 }
 
 function monthlyProfitRows(today = new Date()) {
@@ -1069,19 +1104,7 @@ function renderProfitChart() {
   const yearStart = new Date(today.getFullYear(), 0, 1);
   const yearEnd = new Date(today.getFullYear(), 11, 31);
   const totalDays = Math.max(1, diffDays(yearStart, yearEnd));
-  const step = Math.max(1, Math.ceil(totalDays / 120));
-  const points = [];
-  for (let i=0;i<=totalDays;i+=step) {
-    const date = addDays(yearStart, i);
-    points.push({ date, value: cumulativeProfitOn(date, yearStart, true) });
-  }
-  if (!points.some(point => point.date.getTime() === today.getTime())) {
-    points.push({ date: today, value: cumulativeProfitOn(today, yearStart, true) });
-  }
-  if (!points.some(point => point.date.getTime() === yearEnd.getTime())) {
-    points.push({ date: yearEnd, value: cumulativeProfitOn(yearEnd, yearStart, true) });
-  }
-  points.sort((a, b) => a.date - b.date);
+  const points = profitChartPoints(yearStart, yearEnd, today);
 
   const actualPoints = points.filter(point => point.date <= today);
   const forecastPoints = points.filter(point => point.date >= today);
@@ -1183,7 +1206,7 @@ function renderProfitChart() {
   const currentProfit = cumulativeProfitOn(today, yearStart, true);
   const yearEndProfit = cumulativeProfitOn(yearEnd, yearStart, true);
   document.querySelector("#profitBreakdown").textContent =
-    `今日まで ${formatYen(currentProfit)}｜12月31日予測 ${formatYen(yearEndProfit)}（為替関連損益TTLを含む）`;
+    `今日まで ${formatYen(currentProfit)}｜12月31日予測 ${formatYen(yearEndProfit)}（年内の確定・実現損益と、現在の評価損益を含む）`;
 }
 
 function applyManualUsdRate() {

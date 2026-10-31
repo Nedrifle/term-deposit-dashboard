@@ -132,6 +132,7 @@
         <canvas id="profitChart" width="1000" height="280" aria-label="累計損益グラフ"></canvas>
       </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
+      <p class="daily-breakdown">外貨預金の確定為替損益は満期日、FXの実現損益は登録月の月末日に計上します。前年以前の確定・実現損益は含みません。評価損益と年月未分類の引き継ぎ額は今日から反映し、予測では現在額を据え置きます。</p>
       <div class="monthly-profit">
         <h3>月ごとの損益（利息分）</h3>
         <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は満期後も預入時レートで円換算します。円転時との差額は確定為替差損益に含めます。</p>
@@ -382,6 +383,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v28.js"></script>
+  <script src="app-v29.js"></script>
 </body>
 </html>
