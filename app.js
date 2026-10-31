@@ -3,14 +3,17 @@ const SURPLUS_STORAGE_KEY = "term-deposit-surplus-v1";
 const FX_HEDGE_STORAGE_KEY = "term-deposit-fx-hedge-v1";
 const OWNERS_STORAGE_KEY = "term-deposit-owners-v1";
 const OWNER_SETTINGS_KEY = "term-deposit-owner-settings-v1";
+const FX_LEDGER_STORAGE_KEY = "term-deposit-fx-ledger-v1";
 const DEFAULT_OWNER_ID = "self";
 let owners = loadOwners();
 let selectedOwnerId = localStorage.getItem("term-deposit-selected-owner-v1") || "all";
 if (selectedOwnerId !== "all" && !owners.some(owner => owner.id === selectedOwnerId)) selectedOwnerId = "all";
 let ownerSettings = loadOwnerSettings();
+let fxLedger = loadFxLedger();
+let fxYear = Math.max(2026, new Date().getFullYear());
 const SURPLUS_TAX_RATE = 20.315;
 const SUPPORTED_FOREIGN_CURRENCY = "USD";
-const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details"]);
+const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details", "fx"]);
 let currentView = viewFromHash();
 const state = {
   deposits: loadDeposits(),
@@ -54,6 +57,214 @@ const els = {
   viewLinks: [...document.querySelectorAll("[data-view-link]")],
 };
 
+function loadFxLedger() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FX_LEDGER_STORAGE_KEY));
+    if (saved?.version === 1 && Array.isArray(saved.companies) && saved.byOwner && typeof saved.byOwner === "object") return saved;
+  } catch (e) {}
+  const byOwner = {};
+  owners.forEach(owner => {
+    const previous = ownerSettings[owner.id]?.fxHedge;
+    byOwner[owner.id] = {
+      realized: {},
+      legacyRealized: Number(previous?.settledProfit) || 0,
+      unrealized: Number(previous?.unsettledProfit) || 0,
+      updatedAt: "",
+    };
+  });
+  return { version: 1, companies: [], byOwner };
+}
+
+function fxOwnerData(ownerId, create = false) {
+  if (create && !fxLedger.byOwner[ownerId]) {
+    fxLedger.byOwner[ownerId] = { realized: {}, legacyRealized: 0, unrealized: 0, updatedAt: "" };
+  }
+  return fxLedger.byOwner[ownerId] || { realized: {}, legacyRealized: 0, unrealized: 0, updatedAt: "" };
+}
+
+function fxScopeOwners() {
+  return selectedOwnerId === "all" ? owners : owners.filter(owner => owner.id === selectedOwnerId);
+}
+
+function fxCellValue(month, companyId) {
+  return fxScopeOwners().reduce((sum, owner) => sum + (Number(fxOwnerData(owner.id).realized[month]?.[companyId]) || 0), 0);
+}
+
+function fxLegacyTotal() {
+  return fxScopeOwners().reduce((sum, owner) => sum + (Number(fxOwnerData(owner.id).legacyRealized) || 0), 0);
+}
+
+function fxLedgerSummary() {
+  return fxScopeOwners().reduce((total, owner) => {
+    const data = fxOwnerData(owner.id);
+    total.settledProfit += Number(data.legacyRealized) || 0;
+    Object.entries(data.realized).forEach(([month, values]) => {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2026) return;
+      total.settledProfit += Object.values(values).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    });
+    total.unsettledProfit += Number(data.unrealized) || 0;
+    return total;
+  }, { settledProfit: 0, unsettledProfit: 0 });
+}
+
+function saveFxLedger() {
+  localStorage.setItem(FX_LEDGER_STORAGE_KEY, JSON.stringify(fxLedger));
+}
+
+function parseFxAmount(value) {
+  const normalized = value.normalize("NFKC").replace(/[−–]/g, "-").replace(/,/g, "").trim();
+  if (!normalized) return 0;
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function storeFxCell(month, companyId, value) {
+  if (selectedOwnerId === "all" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2026 || !fxLedger.companies.some(company => company.id === companyId) || !Number.isFinite(value)) return false;
+  const data = fxOwnerData(selectedOwnerId, true);
+  if (!data.realized[month]) data.realized[month] = {};
+  data.realized[month][companyId] = value;
+  saveFxLedger();
+  return true;
+}
+
+function refreshFxTotals() {
+  let yearTotal = 0;
+  for (let month = 1; month <= 12; month++) {
+    const key = `${fxYear}-${String(month).padStart(2, "0")}`;
+    const total = fxLedger.companies.reduce((sum, company) => sum + fxCellValue(key, company.id), 0);
+    yearTotal += total;
+    document.querySelector(`#fxMonthTotal-${month}`).textContent = formatYen(total);
+  }
+  fxLedger.companies.forEach((company, index) => {
+    let total = 0;
+    for (let month = 1; month <= 12; month++) total += fxCellValue(`${fxYear}-${String(month).padStart(2, "0")}`, company.id);
+    document.querySelector(`#fxCompanyTotal-${index}`).textContent = formatYen(total);
+  });
+  document.querySelector("#fxYearTotal").textContent = formatYen(yearTotal);
+  const summary = fxLedgerSummary();
+  document.querySelector("#fxRegisteredRealized").textContent = formatYen(summary.settledProfit);
+  document.querySelector("#fxCurrentUnrealized").textContent = formatYen(summary.unsettledProfit);
+  document.querySelector("#fxRegisteredTotal").textContent = formatYen(summary.settledProfit + summary.unsettledProfit);
+}
+
+function updateFxOverview() {
+  state.fxHedge = fxLedgerSummary();
+  refreshFxTotals();
+  renderSummary();
+  renderProfitChart();
+}
+
+function setFxSaveStatus(message, error = false) {
+  const status = document.querySelector("#fxSaveStatus");
+  status.textContent = message;
+  status.classList.toggle("negative", error);
+}
+
+function handleFxAmountInput(input, saveValue) {
+  const amount = parseFxAmount(input.value);
+  input.setAttribute("aria-invalid", amount === null ? "true" : "false");
+  if (amount === null) {
+    setFxSaveStatus("数値を入力してください。入力途中・不正な値は保存されません。", true);
+    return;
+  }
+  saveValue(amount);
+  updateFxOverview();
+  setFxSaveStatus("保存しました（この端末内に自動保存）");
+}
+
+function renderFxLedger() {
+  const aggregate = selectedOwnerId === "all";
+  const yearSelect = document.querySelector("#fxYear");
+  const storedYears = Object.values(fxLedger.byOwner).flatMap(data => Object.keys(data.realized).map(key => Number(key.slice(0, 4)))).filter(year => Number.isInteger(year) && year >= 2026 && year <= 9999);
+  const maxYear = Math.max(2026, new Date().getFullYear(), fxYear, ...storedYears);
+  yearSelect.replaceChildren(...Array.from({ length: maxYear - 2026 + 2 }, (_, index) => new Option(`${2026 + index}年`, String(2026 + index))));
+  yearSelect.value = String(fxYear);
+  document.querySelector("#fxEditingScope").textContent = aggregate ? "全員合算は閲覧用です。保有者を選択すると入力できます。" : `${ownerName(selectedOwnerId)}さんの損益を入力できます。入力内容は自動保存されます。`;
+  document.querySelector("#addFxCompanyButton").disabled = aggregate;
+  document.querySelector("#fxCompanyEmpty").hidden = fxLedger.companies.length > 0;
+  const head = document.querySelector("#fxLedgerHead");
+  const body = document.querySelector("#fxLedgerBody");
+  const foot = document.querySelector("#fxLedgerFoot");
+  head.replaceChildren(); body.replaceChildren(); foot.replaceChildren();
+  const header = document.createElement("tr");
+  const monthHeading = document.createElement("th"); monthHeading.scope = "col"; monthHeading.textContent = "年月"; header.appendChild(monthHeading);
+  fxLedger.companies.forEach(company => {
+    const th = document.createElement("th"); th.scope = "col";
+    const name = document.createElement("span"); name.textContent = company.name; th.appendChild(name);
+    if (!aggregate) {
+      const actions = document.createElement("div"); actions.className = "fx-company-actions";
+      const rename = document.createElement("button"); rename.type = "button"; rename.textContent = "名前変更"; rename.className = "secondary-button";
+      rename.setAttribute("aria-label", `${company.name}の名前を変更`);
+      rename.addEventListener("click", () => renameFxCompany(company));
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "削除"; remove.className = "danger-button";
+      remove.setAttribute("aria-label", `${company.name}を削除`);
+      remove.addEventListener("click", () => removeFxCompany(company));
+      actions.append(rename, remove); th.appendChild(actions);
+    }
+    header.appendChild(th);
+  });
+  const totalHeading = document.createElement("th"); totalHeading.scope = "col"; totalHeading.textContent = "月合計"; header.appendChild(totalHeading); head.appendChild(header);
+  for (let month = 1; month <= 12; month++) {
+    const key = `${fxYear}-${String(month).padStart(2, "0")}`;
+    const row = document.createElement("tr");
+    const label = document.createElement("th"); label.scope = "row"; label.textContent = `${fxYear}年${month}月`; row.appendChild(label);
+    fxLedger.companies.forEach(company => {
+      const td = document.createElement("td");
+      if (aggregate) {
+        td.textContent = formatYen(fxCellValue(key, company.id));
+      } else {
+        const input = document.createElement("input"); input.type = "text"; input.inputMode = "text"; input.spellcheck = false; input.autocapitalize = "off";
+        input.value = fxOwnerData(selectedOwnerId).realized[key]?.[company.id] ?? "";
+        input.placeholder = "0";
+        input.setAttribute("aria-label", `${fxYear}年${month}月 ${company.name}の実現損益（円）`);
+        input.addEventListener("input", () => handleFxAmountInput(input, value => storeFxCell(key, company.id, value)));
+        td.appendChild(input);
+      }
+      row.appendChild(td);
+    });
+    const total = document.createElement("td"); total.id = `fxMonthTotal-${month}`; row.appendChild(total); body.appendChild(row);
+  }
+  const footer = document.createElement("tr");
+  const label = document.createElement("th"); label.scope = "row"; label.textContent = "年合計"; footer.appendChild(label);
+  fxLedger.companies.forEach((company, index) => { const td = document.createElement("td"); td.id = `fxCompanyTotal-${index}`; footer.appendChild(td); });
+  const total = document.createElement("td"); total.id = "fxYearTotal"; footer.appendChild(total); foot.appendChild(footer);
+  els.fxSettledProfit.value = fxLegacyTotal() || "";
+  els.fxUnsettledProfit.value = fxLedgerSummary().unsettledProfit || "";
+  document.querySelector("#fxLegacyPanel").hidden = fxLegacyTotal() === 0;
+  const updates = fxScopeOwners().map(owner => fxOwnerData(owner.id).updatedAt).filter(Boolean).sort();
+  document.querySelector("#fxUnrealizedUpdatedAt").textContent = updates.length ? `最終更新：${new Date(updates[updates.length - 1]).toLocaleString("ja-JP")}` : "現在の損益を上書き入力してください。月ごとの累積ではありません。";
+  setFxSaveStatus(aggregate ? "全員合算を表示中" : "入力内容はこの端末内に自動保存されます。");
+  refreshFxTotals();
+}
+
+function addFxCompany() {
+  if (selectedOwnerId === "all") return;
+  const name = prompt("FX会社名を入力してください（会社一覧は全保有者で共通です）。")?.trim();
+  if (!name) return;
+  if (fxLedger.companies.some(company => company.name === name)) return alert("同じFX会社名が登録されています。");
+  fxLedger.companies.push({ id: crypto.randomUUID(), name });
+  saveFxLedger(); renderFxLedger();
+}
+
+function renameFxCompany(company) {
+  if (selectedOwnerId === "all") return;
+  const name = prompt("FX会社名を変更します（全保有者に反映されます）。", company.name)?.trim();
+  if (!name) return;
+  if (fxLedger.companies.some(other => other.id !== company.id && other.name === name)) return alert("同じFX会社名が登録されています。");
+  company.name = name; saveFxLedger(); renderFxLedger();
+}
+
+function removeFxCompany(company) {
+  if (selectedOwnerId === "all") return;
+  const hasValues = Object.values(fxLedger.byOwner).some(data => Object.values(data.realized).some(values => Number(values[company.id]) !== 0 && values[company.id] != null));
+  if (hasValues) return alert("損益が登録されている会社は削除できません。全保有者・全登録年の該当金額を消去してから削除してください。");
+  if (!confirm(`${company.name}を会社一覧から削除しますか？`)) return;
+  Object.values(fxLedger.byOwner).forEach(data => Object.values(data.realized).forEach(values => delete values[company.id]));
+  fxLedger.companies = fxLedger.companies.filter(other => other.id !== company.id);
+  saveFxLedger(); renderFxLedger();
+}
+
 function loadOwners() {
   try {
     const saved = JSON.parse(localStorage.getItem(OWNERS_STORAGE_KEY));
@@ -74,10 +285,10 @@ function loadOwnerSettings() {
 }
 
 function scopedSettings(key) {
+  if (key === "fxHedge") return fxLedgerSummary();
   const empty = key === "surplusFunds" ? { amount: 0, annualRate: 0 } : { settledProfit: 0, unsettledProfit: 0 };
   if (selectedOwnerId !== "all") return { ...empty, ...ownerSettings[selectedOwnerId]?.[key] };
   const values = owners.map(o => ({ ...empty, ...ownerSettings[o.id]?.[key] }));
-  if (key === "fxHedge") return values.reduce((sum, value) => ({ settledProfit: sum.settledProfit + value.settledProfit, unsettledProfit: sum.unsettledProfit + value.unsettledProfit }), empty);
   const amount = values.reduce((sum, value) => sum + value.amount, 0);
   return { amount, annualRate: amount ? values.reduce((sum, value) => sum + value.amount * value.annualRate, 0) / amount : 0 };
 }
@@ -102,7 +313,7 @@ function renderOwnerControls() {
   selector.value = selectedOwnerId;
   formSelector.replaceChildren(...owners.map(o => new Option(o.name, o.id)));
   formSelector.value = owners.some(o => o.id === previous) ? previous : DEFAULT_OWNER_ID;
-  document.querySelector("#ownerScopeLabel").textContent = selectedOwnerId === "all" ? "全員の預金を合算して表示しています。余剰資金・ヘッジ損益は各保有者の画面で入力できます。" : `${ownerName(selectedOwnerId)}さんの預金を表示しています。`;
+  document.querySelector("#ownerScopeLabel").textContent = selectedOwnerId === "all" ? "全員の預金を合算して表示しています。余剰資金は概要、FX損益はFXタブで保有者ごとに入力できます。" : `${ownerName(selectedOwnerId)}さんの預金を表示しています。`;
   document.querySelector("#renameOwnerButton").disabled = selectedOwnerId === "all";
   [els.surplusAmount, els.surplusAnnualRate, els.clearSurplus, els.fxSettledProfit, els.fxUnsettledProfit].forEach(el => el.disabled = selectedOwnerId === "all");
 }
@@ -112,7 +323,7 @@ function syncScopedInputs() {
   state.fxHedge = scopedSettings("fxHedge");
   els.surplusAmount.value = state.surplusFunds.amount || "";
   els.surplusAnnualRate.value = state.surplusFunds.annualRate || "";
-  els.fxSettledProfit.value = state.fxHedge.settledProfit || "";
+  els.fxSettledProfit.value = fxLegacyTotal() || "";
   els.fxUnsettledProfit.value = state.fxHedge.unsettledProfit || "";
   els.manualUsdRate.value = "";
 }
@@ -127,6 +338,8 @@ function applyView() {
   els.dashboardView.hidden = currentView !== "dashboard";
   els.depositsView.hidden = currentView !== "active" && currentView !== "matured";
   els.fxDetailsView.hidden = currentView !== "fx-details";
+  document.querySelector("#fxView").hidden = currentView !== "fx";
+  if (currentView === "fx") renderFxLedger();
 
   els.viewLinks.forEach(link => {
     if (link.dataset.viewLink === currentView) link.setAttribute("aria-current", "page");
@@ -177,10 +390,6 @@ function loadFxHedge() {
   } catch (e) {
     return { settledProfit: 0, unsettledProfit: 0 };
   }
-}
-
-function saveFxHedge() {
-  saveScopedSettings("fxHedge", state.fxHedge);
 }
 
 function normalizeDeposit(deposit) {
@@ -335,7 +544,8 @@ function fxGainLoss(deposits = visibleDeposits(), date = new Date()) {
 }
 
 function fxHedgeGainLoss() {
-  return Number(state.fxHedge.settledProfit) + Number(state.fxHedge.unsettledProfit);
+  const summary = fxLedgerSummary();
+  return summary.settledProfit + summary.unsettledProfit;
 }
 
 function totalCurrencyGainLoss() {
@@ -384,8 +594,9 @@ function renderSummary() {
   const active = visibleDeposits().filter(d => isActiveOn(d, today));
   const principalYen = active.reduce((sum, d) => sum + convertToYen(Number(d.principal), d), 0);
   const breakdown = depositFxBreakdown();
-  const settledHedge = Number(state.fxHedge.settledProfit);
-  const unsettledHedge = Number(state.fxHedge.unsettledProfit);
+  const fxSummary = fxLedgerSummary();
+  const settledHedge = fxSummary.settledProfit;
+  const unsettledHedge = fxSummary.unsettledProfit;
   const realizedTotal = breakdown.realized + settledHedge;
   const unrealizedTotal = breakdown.unrealized + unsettledHedge;
   const fxTotal = realizedTotal + unrealizedTotal;
@@ -1002,6 +1213,7 @@ function applyManualUsdRate() {
 
 function render() {
   renderOwnerControls();
+  renderFxLedger();
   renderSurplusFunds();
   renderSummary();
   renderDeposits();
@@ -1094,15 +1306,21 @@ els.taxMode.addEventListener("change", e => {
   renderChart();
 });
 els.applyFxRate.addEventListener("click", applyManualUsdRate);
-[els.fxSettledProfit, els.fxUnsettledProfit].forEach(input => {
-  input.addEventListener("input", () => {
-    state.fxHedge = {
-      settledProfit: Number(els.fxSettledProfit.value) || 0,
-      unsettledProfit: Number(els.fxUnsettledProfit.value) || 0,
-    };
-    saveFxHedge();
-    renderSummary();
-    renderProfitChart();
+els.fxSettledProfit.addEventListener("input", () => {
+  if (selectedOwnerId === "all") return;
+  handleFxAmountInput(els.fxSettledProfit, value => {
+    fxOwnerData(selectedOwnerId, true).legacyRealized = value;
+    saveFxLedger();
+  });
+});
+els.fxUnsettledProfit.addEventListener("input", () => {
+  if (selectedOwnerId === "all") return;
+  handleFxAmountInput(els.fxUnsettledProfit, value => {
+    const data = fxOwnerData(selectedOwnerId, true);
+    data.unrealized = value;
+    data.updatedAt = new Date().toISOString();
+    saveFxLedger();
+    document.querySelector("#fxUnrealizedUpdatedAt").textContent = `最終更新：${new Date(data.updatedAt).toLocaleString("ja-JP")}`;
   });
 });
 [els.surplusAmount, els.surplusAnnualRate].forEach(input => {
@@ -1212,8 +1430,9 @@ window.addEventListener("hashchange", applyView);
 
 els.surplusAmount.value = state.surplusFunds.amount || "";
 els.surplusAnnualRate.value = state.surplusFunds.annualRate || "";
-els.fxSettledProfit.value = state.fxHedge.settledProfit || "";
+els.fxSettledProfit.value = fxLegacyTotal() || "";
 els.fxUnsettledProfit.value = state.fxHedge.unsettledProfit || "";
+saveFxLedger();
 render();
 applyView();
 
@@ -1244,4 +1463,10 @@ document.querySelector("#renameOwnerButton").addEventListener("click", () => {
   owner.name = name;
   localStorage.setItem(OWNERS_STORAGE_KEY, JSON.stringify(owners));
   render();
+});
+
+document.querySelector("#addFxCompanyButton").addEventListener("click", addFxCompany);
+document.querySelector("#fxYear").addEventListener("change", event => {
+  fxYear = Number(event.target.value);
+  renderFxLedger();
 });

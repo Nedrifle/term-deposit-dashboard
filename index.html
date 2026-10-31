@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v22.css" />
+  <link rel="stylesheet" href="style-v27.css" />
 </head>
 <body>
   <header class="app-header">
@@ -21,6 +21,7 @@
       <a href="#dashboard" data-view-link="dashboard">概要</a>
       <a href="#active" data-view-link="active">運用中 <span id="activeNavCount">0</span></a>
       <a href="#matured" data-view-link="matured">満期済み <span id="maturedNavCount">0</span></a>
+      <a href="#fx" data-view-link="fx">FX</a>
       <a href="#fx-details" data-view-link="fx-details">為替差損益明細</a>
     </div>
   </nav>
@@ -68,7 +69,7 @@
       <div>
         <h2>為替関連</h2>
       </div>
-      <div class="fx-related-fields">
+      <div class="fx-related-fields fx-rate-only">
         <div class="fx-rate-entry">
           <label for="manualUsdRate">USD現在レート（1 USD = 円）</label>
           <div class="fx-rate-controls">
@@ -76,20 +77,6 @@
             <button id="applyFxRateButton" class="secondary-button">反映</button>
           </div>
         </div>
-        <label>
-          ヘッジ決済損益（円）
-          <div class="input-with-unit">
-            <span>¥</span>
-            <input id="fxSettledProfit" type="text" inputmode="text" spellcheck="false" autocapitalize="off" placeholder="例：-10000" />
-          </div>
-        </label>
-        <label>
-          ヘッジ未決済損益（円）
-          <div class="input-with-unit">
-            <span>¥</span>
-            <input id="fxUnsettledProfit" type="text" inputmode="text" spellcheck="false" autocapitalize="off" placeholder="例：-10000" />
-          </div>
-        </label>
       </div>
     </section>
 
@@ -147,7 +134,7 @@
       <div id="profitBreakdown" class="daily-breakdown"></div>
       <div class="monthly-profit">
         <h3>月ごとの損益（利息分）</h3>
-        <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。為替・ヘッジ損益は月別履歴がないため、この表には含みません。外貨利息は年間グラフと同じ換算レートで計算します。</p>
+        <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は年間グラフと同じ換算レートで計算します。</p>
         <div class="monthly-profit-scroll" tabindex="0" role="region" aria-label="月ごとの損益表" aria-describedby="monthlyProfitNote">
           <table class="monthly-profit-table">
             <caption class="visually-hidden">今年の月別税引後利息の実績と予測</caption>
@@ -199,6 +186,45 @@
       <div id="depositList" class="deposit-list"></div>
       <p id="emptyMessage" class="empty-message">まだ定期預金が登録されていません。</p>
     </section>
+    </section>
+
+    <section id="fxView" class="app-view" hidden>
+      <section class="panel view-content-panel">
+        <div class="panel-heading">
+          <div><p class="view-eyebrow">FX</p><h2>FX損益の登録</h2></div>
+          <button id="addFxCompanyButton" class="secondary-button" type="button">＋ FX会社を追加</button>
+        </div>
+        <p id="fxEditingScope" class="daily-breakdown"></p>
+        <p class="daily-breakdown">金額は円で入力してください。マイナス入力にも対応しています。FX会社の一覧は全保有者で共通です。</p>
+        <div class="fx-ledger-summary">
+          <div><span>実現損益（全登録年月）</span><strong id="fxRegisteredRealized">¥0</strong></div>
+          <div><span>未実現損益（現時点）</span><strong id="fxCurrentUnrealized">¥0</strong></div>
+          <div><span>FX損益合計</span><strong id="fxRegisteredTotal">¥0</strong></div>
+        </div>
+        <h3>実現損益</h3>
+        <div class="toolbar"><label for="fxYear">表示年</label><select id="fxYear"></select></div>
+        <p class="daily-breakdown">2026年1月から登録できます。表は横・縦にスクロールできます。概要の「ヘッジ・決済済み損益」は、表示年にかかわらず全登録年月の合計です。</p>
+        <p id="fxCompanyEmpty" class="empty-message">保有者を選び「FX会社を追加」すると、年月×FX会社の表に入力できます。</p>
+        <div class="fx-ledger-scroll" role="region" aria-label="年月別・FX会社別の実現損益" tabindex="0">
+          <table class="fx-ledger-table">
+            <caption class="visually-hidden">FX実現損益の月別・会社別入力表（円）</caption>
+            <thead id="fxLedgerHead"></thead><tbody id="fxLedgerBody"></tbody><tfoot id="fxLedgerFoot"></tfoot>
+          </table>
+        </div>
+        <div id="fxLegacyPanel" class="fx-legacy-panel" hidden>
+          <label for="fxSettledProfit">年月未分類の実現損益（従来入力の引き継ぎ・円）</label>
+          <input id="fxSettledProfit" type="text" inputmode="text" spellcheck="false" placeholder="0" />
+          <p class="daily-breakdown">以前の決済損益は年月・会社が不明なため、ここに引き継いで合計に含めています。月別表へ振り分けた分はこの金額から差し引き、二重計上を防いでください。</p>
+        </div>
+        <div class="fx-unrealized-panel">
+          <h3>未実現損益</h3>
+          <label for="fxUnsettledProfit">現時点の未実現損益（全FX会社の合計・円）</label>
+          <input id="fxUnsettledProfit" type="text" inputmode="text" spellcheck="false" placeholder="例：-10000" />
+          <p id="fxUnrealizedUpdatedAt" class="daily-breakdown"></p>
+          <p class="daily-breakdown">概要の「ヘッジ・未決済損益」に反映します。</p>
+        </div>
+        <p id="fxSaveStatus" class="daily-breakdown" role="status" aria-live="polite"></p>
+      </section>
     </section>
 
     <section id="fxDetailsView" class="app-view" hidden>
@@ -356,6 +382,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v26.js"></script>
+  <script src="app-v27.js"></script>
 </body>
 </html>
