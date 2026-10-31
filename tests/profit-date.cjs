@@ -1,0 +1,18 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.resolve(__dirname,'..');
+const script=fs.readFileSync(path.join(root,'index.html'),'utf8').match(/<script src="([^"]+)"/)[1];
+const c=vm.createContext({localStorage:{getItem:()=>null},window:{location:{hash:''}},document:{querySelector:()=>({}),querySelectorAll:()=>[]},crypto:{randomUUID:()=> 'test'},Date,Intl});
+vm.runInContext(fs.readFileSync(path.join(root,script),'utf8').split('els.form.addEventListener("submit"')[0],c);
+const run=s=>vm.runInContext(s,c);
+assert.equal(run("profitDateIndex('2026-01-01',2026)"),0);
+assert.equal(run("profitDateIndex('2026-12-31',2026)"),364);
+assert.equal(run("profitDateIndex('2028-02-29',2028)"),59);
+assert.equal(run("profitDateIndex('2028-12-31',2028)"),365);
+for(const value of ['','invalid','2026-02-29','2026-02-30','2026-13-01','2025-12-31','2027-01-01'])assert.equal(run(`profitDateIndex('${value}',2026)`),null);
+assert.equal(run('profitDateValue(resolveProfitDetailDate(null,2026,new Date(2026,9,31)))'),'2026-10-31');
+assert.equal(run('profitDateValue(resolveProfitDetailDate(null,2025,new Date(2026,9,31)))'),'2025-12-31');
+assert.equal(run('profitDateValue(resolveProfitDetailDate(new Date(2028,1,29),2027))'),'2027-02-28');
+assert.equal(run('profitDateValue(resolveProfitDetailDate(new Date(2028,1,29),2032))'),'2032-02-29');
+assert.equal(run('profitDateValue(resolveProfitDetailDate(new Date(2026,4,15),2026))'),'2026-05-15');
+assert.equal(run('profitDateValue(new Date(2026,0,1))'),'2026-01-01');
+console.log('PASS: direct date indexing, year limits, invalid dates, leap day, default today/end-of-year, selection preservation and year mapping, local-date formatting');

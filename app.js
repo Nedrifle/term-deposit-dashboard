@@ -23,6 +23,7 @@ const PROFIT_SERIES = [
 let profitYear = Number(localStorage.getItem("term-deposit-profit-year-v1")) || new Date().getFullYear();
 if (!Number.isInteger(profitYear) || profitYear < 1000 || profitYear > 9999) profitYear = new Date().getFullYear();
 let profitChartModel = null;
+let profitDetailDate = null;
 const PROFIT_SELECTION_KEY = "term-deposit-profit-selection-v1";
 let selectedProfitKeys = loadProfitSelection();
 const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details", "fx"]);
@@ -1122,9 +1123,64 @@ function stackProfitValues(values, seriesList = PROFIT_SERIES) {
   return { bands, positive, negative, total: positive + negative };
 }
 
+function profitDateValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function resolveProfitDetailDate(selected, year, today = new Date()) {
+  if (!(selected instanceof Date) || !Number.isFinite(selected.getTime())) {
+    return year === today.getFullYear() ? dateAtMidnight(today) : new Date(year, 11, 31);
+  }
+  const month = selected.getMonth();
+  const day = Math.min(selected.getDate(), new Date(year, month + 1, 0).getDate());
+  return new Date(year, month, day);
+}
+
+function profitDateIndex(value, year) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = dateAtMidnight(value);
+  if (!Number.isFinite(date.getTime()) || date.getFullYear() !== year || profitDateValue(date) !== value) return null;
+  return diffDays(new Date(year, 0, 1), date);
+}
+
+function drawProfitDateMarker(point, index) {
+  const model = profitChartModel;
+  const ctx = els.profitChart.getContext("2d");
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, els.profitChart.width, els.profitChart.height);
+  ctx.drawImage(model.baseCanvas, 0, 0);
+  ctx.restore();
+  const x = model.padding.left + model.plotW * index / (model.points.length - 1);
+  const y = model.padding.top + model.plotH * (1 - (point.value - model.min) / (model.max - model.min));
+  ctx.save();
+  ctx.strokeStyle = "#245fc2"; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+  ctx.beginPath(); ctx.moveTo(x, model.padding.top); ctx.lineTo(x, model.height - model.padding.bottom); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fillStyle = "#245fc2"; ctx.fill();
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+  const label = `選択 ${formatDate(point.date)}`;
+  ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif";
+  const labelWidth = ctx.measureText(label).width;
+  const labelX = Math.min(model.width - labelWidth - 12, Math.max(model.padding.left + 3, x + 6));
+  ctx.fillStyle = "rgba(255,255,255,.94)"; ctx.fillRect(labelX - 3, model.padding.top + 17, labelWidth + 6, 18);
+  ctx.fillStyle = "#245fc2"; ctx.fillText(label, labelX, model.padding.top + 30);
+  ctx.restore();
+}
+
 function showProfitPoint(index) {
   if (!profitChartModel) return;
-  const point = profitChartModel.points[Math.max(0, Math.min(index, profitChartModel.points.length - 1))];
+  index = Math.max(0, Math.min(index, profitChartModel.points.length - 1));
+  const point = profitChartModel.points[index];
+  profitDetailDate = new Date(point.date);
+  const dateInput = document.querySelector("#profitDetailDate");
+  dateInput.min = profitDateValue(profitChartModel.points[0].date);
+  dateInput.max = profitDateValue(profitChartModel.points[profitChartModel.points.length - 1].date);
+  dateInput.value = profitDateValue(point.date);
+  dateInput.setCustomValidity("");
+  document.querySelector("#profitPreviousDay").disabled = index === 0;
+  document.querySelector("#profitNextDay").disabled = index === profitChartModel.points.length - 1;
+  drawProfitDateMarker(point, index);
   const dateText = new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "numeric", day: "numeric" }).format(point.date);
   const status = point.date > profitChartModel.today ? "予測" : "実績";
   document.querySelector("#profitDetailHeading").textContent = `${dateText}の内訳（${status}）`;
@@ -1306,8 +1362,12 @@ function renderProfitChart() {
     const amount = document.createElement("strong"); amount.id = series.key === "total" ? "profitPointTotal" : `profitDetail-${series.key}`;
     item.append(label, amount); legend.appendChild(item);
   });
-  profitChartModel = { points, today, width, padding, plotW, series: seriesList };
-  showProfitPoint(profitYear === today.getFullYear() ? diffDays(yearStart, today) : points.length - 1);
+  const baseCanvas = document.createElement("canvas");
+  baseCanvas.width = canvas.width; baseCanvas.height = canvas.height;
+  baseCanvas.getContext("2d").drawImage(canvas, 0, 0);
+  profitChartModel = { points, today, width, height, padding, plotW, plotH, min, max, baseCanvas, series: seriesList };
+  const selectedDate = resolveProfitDetailDate(profitDetailDate, profitYear, today);
+  showProfitPoint(diffDays(yearStart, selectedDate));
   const yearEndProfit = points[points.length - 1].value;
   const breakdown = document.querySelector("#profitBreakdown");
   if (profitYear < today.getFullYear()) breakdown.textContent = `${profitYear}年末累計 ${formatYen(yearEndProfit)}（実績）`;
@@ -1618,4 +1678,26 @@ document.querySelector("#selectAllProfitSeries").addEventListener("click", () =>
 document.querySelector("#clearProfitSeries").addEventListener("click", () => {
   selectedProfitKeys = new Set();
   saveProfitSelection();
+});
+
+document.querySelector("#profitDetailDate").addEventListener("change", event => {
+  const index = profitDateIndex(event.target.value, profitYear);
+  if (index === null) {
+    event.target.setCustomValidity("選択した年度内の正しい日付を指定してください。");
+    event.target.reportValidity();
+    return;
+  }
+  showProfitPoint(index);
+});
+document.querySelector("#profitPreviousDay").addEventListener("click", () => {
+  if (profitChartModel && profitDetailDate) showProfitPoint(diffDays(profitChartModel.points[0].date, profitDetailDate) - 1);
+});
+document.querySelector("#profitNextDay").addEventListener("click", () => {
+  if (profitChartModel && profitDetailDate) showProfitPoint(diffDays(profitChartModel.points[0].date, profitDetailDate) + 1);
+});
+document.querySelector("#profitToday").addEventListener("click", () => {
+  profitDetailDate = dateAtMidnight(new Date());
+  profitYear = profitDetailDate.getFullYear();
+  localStorage.setItem("term-deposit-profit-year-v1", String(profitYear));
+  renderProfitChart();
 });

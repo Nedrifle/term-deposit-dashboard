@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v31.css" />
+  <link rel="stylesheet" href="style-v32.css" />
 </head>
 <body>
   <header class="app-header">
@@ -145,11 +145,20 @@
         </div>
         <p id="profitSeriesStatus" class="daily-breakdown" role="status" aria-live="polite"></p>
       </fieldset>
+      <div class="profit-date-controls" role="group" aria-label="損益の確認日を選択">
+        <label for="profitDetailDate">損益を確認する日<input id="profitDetailDate" type="date" /></label>
+        <div class="profit-date-buttons">
+          <button id="profitPreviousDay" type="button" class="secondary-button">前日</button>
+          <button id="profitNextDay" type="button" class="secondary-button">翌日</button>
+          <button id="profitToday" type="button" class="secondary-button">今日</button>
+        </div>
+      </div>
+      <p class="daily-breakdown profit-date-help">「今日」は年度も今年に切り替えます。選択日は青い縦線で表示します。</p>
       <div class="chart-shell">
         <canvas id="profitChart" width="1000" height="320" aria-label="損益種類別の累計損益積み上げグラフ" aria-describedby="profitChartNote"></canvas>
       </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
-      <p id="profitChartNote" class="daily-breakdown">利益はゼロより上、損失は下に種類別で積み上げます。黒線は選択した種類の合計損益です。予測部分は淡色・破線で表示します。グラフをタップ、またはマウスを合わせると、その日の内訳を確認できます。</p>
+      <p id="profitChartNote" class="daily-breakdown">利益はゼロより上、損失は下に種類別で積み上げます。黒線は選択した種類の合計損益です。予測部分は淡色・破線で表示します。日付入力・前日／翌日ボタンで内訳を確認できます。グラフのタップ・マウス操作でも選べます。</p>
       <h3 id="profitDetailHeading" class="profit-detail-heading"></h3>
       <div id="profitLegend" class="profit-legend"></div>
       <p class="daily-breakdown">外貨預金の確定為替損益は満期日、FXの実現損益は登録月の月末日に計上します。選択した年の確定・実現損益を集計します。評価損益と年月未分類の引き継ぎ額は今年の今日以降にだけ反映し、予測では現在額を据え置きます。他年の評価損益は履歴がないため含めません。</p>
@@ -403,6 +412,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v31.js"></script>
+  <script src="app-v32.js"></script>
 </body>
 </html>

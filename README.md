@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -90,3 +90,6 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 
 ## 積み上げグラフの損益種類フィルター
 「表示する損益」のチェックで5種類から任意の組み合わせを選べます。黒線・今日まで／年末の集計・タップ時の内訳も選択した種類のみを合計します。「すべて選択」「すべて解除」に対応し、選択はこの端末に保存されます。年度・保有者を切り替えても選択を維持します。概要カードの金額・月別利息表・元データは変更しません。
+
+## 損益の確認日を選ぶ
+日付入力欄で選択年内の任意の日を指定し、「前日」「翌日」で1日ずつ移動できます。年初・年末では範囲外へ移動するボタンを無効にします。「今日」は年度を今年に戻して今日を選択します。グラフのタップ・マウス操作も継続でき、選択日には青い縦線と合計損益の点を表示します。損益種類・保有者の切り替えや画面サイズ変更でも選択日は維持します。年度を変えた場合は同じ月日を選び、2月29日がない年は2月28日に合わせます。
