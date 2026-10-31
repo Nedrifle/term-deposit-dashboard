@@ -1276,14 +1276,14 @@ function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(tod
     const profit = interest + depositFx + hedgeRealized;
     const averageBalance = balanceDays / elapsedDays;
     return { month: month + 1, elapsedDays, interest, depositFx, hedgeRealized, profit, averageBalance,
-      rate: averageBalance > 0 ? profit / averageBalance * 100 : null,
+      rate: averageBalance > 0 ? profit / averageBalance * 365 / elapsedDays * 100 : null,
       future: false, partial: end < monthEnd };
   });
 }
 
 function renderMonthlyOperatingYield() {
-  document.querySelector("#monthlyYieldTitle").textContent = `${profitYear}年 月ごとの実運用利回り`;
-  document.querySelector("#monthlyYieldCaption").textContent = `${profitYear}年の月別実運用利回りと計算内訳`;
+  document.querySelector("#monthlyYieldTitle").textContent = `${profitYear}年 月ごとの実運用利回り（年率換算）`;
+  document.querySelector("#monthlyYieldCaption").textContent = `${profitYear}年の月別年率換算利回りと計算内訳`;
   const body = document.querySelector("#monthlyYieldBody");
   body.replaceChildren();
   monthlyOperatingYieldRows(new Date(), profitYear).forEach(row => {
