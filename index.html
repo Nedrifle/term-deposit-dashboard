@@ -145,6 +145,9 @@
         </div>
         <p id="profitSeriesStatus" class="daily-breakdown" role="status" aria-live="polite"></p>
       </fieldset>
+      <div class="chart-shell">
+        <canvas id="profitChart" width="1000" height="320" aria-label="損益種類別の累計損益積み上げグラフ" aria-describedby="profitChartNote"></canvas>
+      </div>
       <div class="profit-date-controls" role="group" aria-label="損益の確認日を選択">
         <label for="profitDetailDate">損益を確認する日<input id="profitDetailDate" type="date" /></label>
         <div class="profit-date-buttons">
@@ -154,9 +157,6 @@
         </div>
       </div>
       <p class="daily-breakdown profit-date-help">「今日」は年度も今年に切り替えます。選択日は青い縦線で表示します。</p>
-      <div class="chart-shell">
-        <canvas id="profitChart" width="1000" height="320" aria-label="損益種類別の累計損益積み上げグラフ" aria-describedby="profitChartNote"></canvas>
-      </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
       <p id="profitChartNote" class="daily-breakdown">利益はゼロより上、損失は下に種類別で積み上げます。黒線は選択した種類の合計損益です。予測部分は淡色・破線で表示します。日付入力・前日／翌日ボタンで内訳を確認できます。グラフのタップ・マウス操作でも選べます。</p>
       <h3 id="profitDetailHeading" class="profit-detail-heading"></h3>
