@@ -1,5 +1,5 @@
-const CACHE = "term-deposit-app-v33";
-const ASSETS = ["./","./index.html","./style-v32.css","./app-v32.js","./manifest.json"];
+const CACHE = "term-deposit-app-v34";
+const ASSETS = ["./","./index.html","./style-v32.css","./app-v33.js","./manifest.json"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
   self.skipWaiting();

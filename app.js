@@ -1246,6 +1246,12 @@ function renderMonthlyProfit() {
 }
 
 function renderProfitChart() {
+  // Keep the controls below the chart even if older markup is restored.
+  const chartShell = els.profitChart.closest(".chart-shell");
+  const dateControls = document.querySelector(".profit-date-controls");
+  const dateHelp = document.querySelector(".profit-date-help");
+  if (chartShell && dateControls && chartShell.nextElementSibling !== dateControls) chartShell.after(dateControls);
+  if (dateControls && dateHelp && dateControls.nextElementSibling !== dateHelp) dateControls.after(dateHelp);
   renderMonthlyProfit();
   renderProfitSeriesControls();
   const seriesList = selectedProfitSeries();

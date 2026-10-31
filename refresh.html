@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>最新版に更新</title>
+</head>
+<body>
+  <p>最新版の画面を読み込んでいます。保存データはそのまま引き継ぎます。</p>
+  <p><a id="openApp" href="./index.html">アプリを開く</a></p>
+  <script>
+    const target = new URL("./index.html", window.location.href);
+    target.searchParams.set("refresh", String(Date.now()));
+    target.hash = window.location.hash || "#dashboard";
+    document.querySelector("#openApp").href = target.href;
+    window.location.replace(target.href);
+  </script>
+</body>
+</html>
