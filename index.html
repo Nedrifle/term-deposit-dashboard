@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v27.css" />
+  <link rel="stylesheet" href="style-v30.css" />
 </head>
 <body>
   <header class="app-header">
@@ -125,20 +125,25 @@
     <section class="panel">
       <div class="panel-heading">
         <div>
-          <h2>今年の累計損益</h2>
+          <h2>累計損益</h2>
+          <p id="profitPeriod" class="daily-breakdown"></p>
         </div>
       </div>
+      <div class="toolbar profit-year-filter"><label for="profitYear">年度（1〜12月）</label><select id="profitYear"></select></div>
       <div class="chart-shell">
-        <canvas id="profitChart" width="1000" height="280" aria-label="累計損益グラフ"></canvas>
+        <canvas id="profitChart" width="1000" height="320" aria-label="損益種類別の累計損益積み上げグラフ" aria-describedby="profitChartNote"></canvas>
       </div>
       <div id="profitBreakdown" class="daily-breakdown"></div>
-      <p class="daily-breakdown">外貨預金の確定為替損益は満期日、FXの実現損益は登録月の月末日に計上します。前年以前の確定・実現損益は含みません。評価損益と年月未分類の引き継ぎ額は今日から反映し、予測では現在額を据え置きます。</p>
+      <p id="profitChartNote" class="daily-breakdown">利益はゼロより上、損失は下に種類別で積み上げます。黒線は合計損益です。予測部分は淡色・破線で表示します。グラフをタップ、またはマウスを合わせると、その日の内訳を確認できます。</p>
+      <h3 id="profitDetailHeading" class="profit-detail-heading"></h3>
+      <div id="profitLegend" class="profit-legend"></div>
+      <p class="daily-breakdown">外貨預金の確定為替損益は満期日、FXの実現損益は登録月の月末日に計上します。選択した年の確定・実現損益を集計します。評価損益と年月未分類の引き継ぎ額は今年の今日以降にだけ反映し、予測では現在額を据え置きます。他年の評価損益は履歴がないため含めません。</p>
       <div class="monthly-profit">
-        <h3>月ごとの損益（利息分）</h3>
+        <h3 id="monthlyProfitTitle">月ごとの損益（利息分）</h3>
         <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は満期後も預入時レートで円換算します。円転時との差額は確定為替差損益に含めます。</p>
         <div class="monthly-profit-scroll" tabindex="0" role="region" aria-label="月ごとの損益表" aria-describedby="monthlyProfitNote">
           <table class="monthly-profit-table">
-            <caption class="visually-hidden">今年の月別税引後利息の実績と予測</caption>
+            <caption id="monthlyProfitCaption" class="visually-hidden">選択年の月別税引後利息の実績と予測</caption>
             <thead><tr><th scope="col">月</th><th scope="col">実績</th><th scope="col">予測</th><th scope="col">合計</th></tr></thead>
             <tbody id="monthlyProfitBody"></tbody>
             <tfoot><tr><th scope="row">年間合計</th><td id="monthlyProfit-actual"></td><td id="monthlyProfit-forecast"></td><td id="monthlyProfit-total"></td></tr></tfoot>
@@ -383,6 +388,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v29.js"></script>
+  <script src="app-v30.js"></script>
 </body>
 </html>

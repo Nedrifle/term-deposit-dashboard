@@ -13,6 +13,16 @@ let fxLedger = loadFxLedger();
 let fxYear = Math.max(2026, new Date().getFullYear());
 const SURPLUS_TAX_RATE = 20.315;
 const SUPPORTED_FOREIGN_CURRENCY = "USD";
+const PROFIT_SERIES = [
+  { key: "interest", label: "税引後利息", color: "#2f6fed" },
+  { key: "depositRealized", label: "預金・確定為替損益", color: "#079455" },
+  { key: "depositUnrealized", label: "預金・評価損益", color: "#8750c7" },
+  { key: "fxRealized", label: "FX・実現損益", color: "#d97706" },
+  { key: "fxUnrealized", label: "FX・未実現損益", color: "#d34272" },
+];
+let profitYear = Number(localStorage.getItem("term-deposit-profit-year-v1")) || new Date().getFullYear();
+if (!Number.isInteger(profitYear) || profitYear < 1000 || profitYear > 9999) profitYear = new Date().getFullYear();
+let profitChartModel = null;
 const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details", "fx"]);
 let currentView = viewFromHash();
 const state = {
@@ -1000,18 +1010,31 @@ function renderYieldChart() {
     `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件${invalidCount ? `｜要確認 ${invalidCount}件` : ""}`;
 }
 
-function datedCurrencyGainLoss(date, yearStart, today = new Date()) {
+function availableProfitYears(today = new Date()) {
+  const currentYear = dateAtMidnight(today).getFullYear();
+  const years = [2026, currentYear, currentYear + 1, profitYear];
+  visibleDeposits().forEach(deposit => {
+    years.push(Number(deposit.startDate?.slice(0, 4)), Number(deposit.maturityDate?.slice(0, 4)));
+  });
+  fxScopeOwners().forEach(owner => Object.keys(fxOwnerData(owner.id).realized).forEach(month => years.push(Number(month.slice(0, 4)))));
+  const valid = years.filter(year => Number.isInteger(year) && year >= 1000 && year <= 9999);
+  const first = Math.min(...valid), last = Math.max(...valid);
+  return Array.from({ length: last - first + 1 }, (_, index) => first + index);
+}
+
+function datedProfitComponents(date, yearStart, today = new Date()) {
   const day = dateAtMidnight(date);
   const start = dateAtMidnight(yearStart);
   const current = dateAtMidnight(today);
-  if (day < start) return 0;
-  const depositRealized = visibleDeposits().reduce((sum, deposit) => {
+  const result = { depositRealized: 0, depositUnrealized: 0, fxRealized: 0, fxUnrealized: 0 };
+  if (day < start) return result;
+  result.depositRealized = visibleDeposits().reduce((sum, deposit) => {
     if (deposit.currency !== SUPPORTED_FOREIGN_CURRENCY || !isMaturedOn(deposit, current)) return sum;
     const maturity = dateAtMidnight(deposit.maturityDate);
     if (maturity < start || maturity > day) return sum;
     return sum + principalFxGainLoss(deposit, maturity) + interestFxGainLoss(deposit, maturity);
   }, 0);
-  const fxRealized = fxScopeOwners().reduce((sum, owner) => {
+  result.fxRealized = fxScopeOwners().reduce((sum, owner) => {
     return sum + Object.entries(fxOwnerData(owner.id).realized).reduce((monthlySum, [month, values]) => {
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || Number(month.slice(0, 4)) < 2026) return monthlySum;
       const monthEnd = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0);
@@ -1019,12 +1042,18 @@ function datedCurrencyGainLoss(date, yearStart, today = new Date()) {
       return monthlySum + Object.values(values).reduce((companySum, value) => companySum + (Number(value) || 0), 0);
     }, 0);
   }, 0);
-  // No historical valuations or dated legacy entries exist. Keep these at
-  // today's value from today onwards, as in the previous chart.
-  const currentProfit = day >= current
-    ? depositFxBreakdown(visibleDeposits(), current).unrealized + fxLedgerSummary().unsettledProfit + fxLegacyTotal()
-    : 0;
-  return depositRealized + fxRealized + currentProfit;
+  // Valuation history is unavailable. Only show today's snapshots and undated
+  // legacy realized amounts in the current calendar year, from today onwards.
+  if (start.getFullYear() === current.getFullYear() && day >= current) {
+    result.depositUnrealized = depositFxBreakdown(visibleDeposits(), current).unrealized;
+    result.fxUnrealized = fxLedgerSummary().unsettledProfit;
+    result.fxRealized += fxLegacyTotal();
+  }
+  return result;
+}
+
+function datedCurrencyGainLoss(date, yearStart, today = new Date()) {
+  return Object.values(datedProfitComponents(date, yearStart, today)).reduce((sum, value) => sum + value, 0);
 }
 
 function cumulativeProfitOn(date, yearStart, net = true, today = new Date()) {
@@ -1038,14 +1067,53 @@ function profitChartPoints(yearStart, yearEnd, today = new Date()) {
   const points = [];
   for (let date = dateAtMidnight(yearStart); date <= dateAtMidnight(yearEnd); date = addDays(date, 1)) {
     interest += totalInterestOn(date, true);
-    points.push({ date, value: interest + datedCurrencyGainLoss(date, yearStart, today) });
+    const values = { interest, ...datedProfitComponents(date, yearStart, today) };
+    points.push({ date, values, value: Object.values(values).reduce((sum, value) => sum + value, 0) });
   }
   return points;
 }
 
-function monthlyProfitRows(today = new Date()) {
+function stackProfitValues(values) {
+  let positive = 0, negative = 0;
+  const bands = {};
+  PROFIT_SERIES.forEach(series => {
+    const value = values[series.key] || 0;
+    bands[series.key] = {
+      positive: { bottom: positive, top: positive + Math.max(0, value) },
+      negative: { bottom: negative, top: negative + Math.min(0, value) },
+    };
+    positive += Math.max(0, value);
+    negative += Math.min(0, value);
+  });
+  return { bands, positive, negative, total: positive + negative };
+}
+
+function showProfitPoint(index) {
+  if (!profitChartModel) return;
+  const point = profitChartModel.points[Math.max(0, Math.min(index, profitChartModel.points.length - 1))];
+  const dateText = new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "numeric", day: "numeric" }).format(point.date);
+  const status = point.date > profitChartModel.today ? "予測" : "実績";
+  document.querySelector("#profitDetailHeading").textContent = `${dateText}の内訳（${status}）`;
+  PROFIT_SERIES.forEach(series => {
+    const element = document.querySelector(`#profitDetail-${series.key}`);
+    const value = point.values[series.key];
+    element.textContent = formatYen(value);
+    element.classList.toggle("negative", value < 0);
+  });
+  document.querySelector("#profitPointTotal").textContent = formatYen(point.value);
+}
+
+function inspectProfitChart(event) {
+  if (!profitChartModel) return;
+  if (event.type === "pointermove" && event.pointerType === "touch") return;
+  const bounds = els.profitChart.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) * profitChartModel.width / bounds.width;
+  const portion = Math.max(0, Math.min(1, (x - profitChartModel.padding.left) / profitChartModel.plotW));
+  showProfitPoint(Math.round(portion * (profitChartModel.points.length - 1)));
+}
+
+function monthlyProfitRows(today = new Date(), year = dateAtMidnight(today).getFullYear()) {
   const day = dateAtMidnight(today);
-  const year = day.getFullYear();
   return Array.from({ length: 12 }, (_, month) => {
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 0);
@@ -1061,7 +1129,9 @@ function monthlyProfitRows(today = new Date()) {
 function renderMonthlyProfit() {
   const body = document.querySelector("#monthlyProfitBody");
   body.replaceChildren();
-  const rows = monthlyProfitRows();
+  const rows = monthlyProfitRows(new Date(), profitYear);
+  document.querySelector("#monthlyProfitTitle").textContent = `${profitYear}年 月ごとの損益（利息分）`;
+  document.querySelector("#monthlyProfitCaption").textContent = `${profitYear}年の月別税引後利息の実績と予測`;
   const totals = { actual: 0, forecast: 0, total: 0 };
   rows.forEach(row => {
     const tr = document.createElement("tr");
@@ -1087,126 +1157,117 @@ function renderMonthlyProfit() {
 
 function renderProfitChart() {
   renderMonthlyProfit();
+  const today = dateAtMidnight(new Date());
+  const yearSelect = document.querySelector("#profitYear");
+  yearSelect.replaceChildren(...availableProfitYears(today).map(year => new Option(`${year}年`, String(year))));
+  yearSelect.value = String(profitYear);
+  document.querySelector("#profitPeriod").textContent = `${profitYear}年1月1日〜12月31日`;
   const canvas = els.profitChart;
   const ctx = canvas.getContext("2d");
-  const cssWidth = Math.max(700, canvas.parentElement.clientWidth);
+  const width = Math.max(320, canvas.parentElement.clientWidth);
+  const height = 320;
   const ratio = window.devicePixelRatio || 1;
-  canvas.width = cssWidth * ratio;
-  canvas.height = 280 * ratio;
-  canvas.style.width = `${cssWidth}px`;
-  canvas.style.height = "280px";
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
   ctx.scale(ratio, ratio);
+  ctx.clearRect(0, 0, width, height);
 
-  const width = cssWidth;
-  const height = 280;
-  const padding = { left: 82, right: 24, top: 22, bottom: 56 };
-  const today = dateAtMidnight(new Date());
-  const yearStart = new Date(today.getFullYear(), 0, 1);
-  const yearEnd = new Date(today.getFullYear(), 11, 31);
+  const padding = { left: width < 500 ? 64 : 88, right: 20, top: 20, bottom: 44 };
+  const yearStart = new Date(profitYear, 0, 1);
+  const yearEnd = new Date(profitYear, 11, 31);
   const totalDays = Math.max(1, diffDays(yearStart, yearEnd));
-  const points = profitChartPoints(yearStart, yearEnd, today);
-
+  const points = profitChartPoints(yearStart, yearEnd, today).map(point => ({ ...point, stack: stackProfitValues(point.values) }));
   const actualPoints = points.filter(point => point.date <= today);
   const forecastPoints = points.filter(point => point.date >= today);
-
-  const values = points.map(p => p.value);
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
-  const range = Math.max(1, max - min);
+  const high = Math.max(...points.map(point => point.stack.positive), 1);
+  const low = Math.min(...points.map(point => point.stack.negative), 0);
+  const rawStep = (high - low) / 6;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].find(value => value >= rawStep / magnitude) * magnitude);
+  const max = Math.ceil(high / step) * step;
+  const min = Math.floor(low / step) * step;
+  const range = max - min;
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
+  const xFor = date => padding.left + plotW * diffDays(yearStart, date) / totalDays;
   const yFor = value => padding.top + plotH * (1 - (value - min) / range);
 
-  ctx.clearRect(0,0,width,height);
   ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif";
   ctx.fillStyle = "#667085";
   ctx.strokeStyle = "#e2e8f0";
   ctx.lineWidth = 1;
-
-  for (let i=0;i<=4;i++) {
-    const value = max - range * i / 4;
+  const tickCount = Math.round(range / step);
+  for (let i = 0; i <= tickCount; i++) {
+    const value = max - step * i;
     const y = yFor(value);
-    ctx.beginPath(); ctx.moveTo(padding.left,y); ctx.lineTo(width-padding.right,y); ctx.stroke();
-    ctx.fillText(formatYen(value), 4, y + 4);
+    ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(width - padding.right, y); ctx.stroke();
+    ctx.fillText(width < 600 ? formatCompactYen(value) : formatYen(value), 4, y + 4);
   }
 
-  const zeroY = yFor(0);
-  ctx.strokeStyle = "#98a2b3";
-  ctx.beginPath(); ctx.moveTo(padding.left, zeroY); ctx.lineTo(width-padding.right, zeroY); ctx.stroke();
-
-  const drawLine = (linePoints, dashed = false) => {
+  const drawBand = (linePoints, series, side, opacity) => {
     if (!linePoints.length) return;
-    ctx.strokeStyle = "#079455";
-    ctx.lineWidth = 3;
-    ctx.setLineDash(dashed ? [9, 7] : []);
     ctx.beginPath();
-    linePoints.forEach((p,i) => {
-      const x = padding.left + plotW * diffDays(yearStart, p.date) / totalDays;
-      const y = yFor(p.value);
-      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    linePoints.forEach((point, index) => {
+      const x = xFor(point.date), y = yFor(point.stack.bands[series.key][side].top);
+      if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    for (let index = linePoints.length - 1; index >= 0; index--) {
+      const point = linePoints[index];
+      ctx.lineTo(xFor(point.date), yFor(point.stack.bands[series.key][side].bottom));
+    }
+    ctx.closePath(); ctx.fillStyle = series.color; ctx.globalAlpha = opacity; ctx.fill(); ctx.globalAlpha = 1;
   };
-
-  drawLine(actualPoints);
-
-  if (actualPoints.length) {
-    ctx.beginPath();
-    actualPoints.forEach((p,i) => {
-      const x = padding.left + plotW * diffDays(yearStart, p.date) / totalDays;
-      const y = yFor(p.value);
-      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  PROFIT_SERIES.forEach(series => {
+    ["positive", "negative"].forEach(side => {
+      drawBand(actualPoints, series, side, 0.78);
+      drawBand(forecastPoints, series, side, 0.28);
     });
-    const actualEndX = padding.left + plotW * diffDays(yearStart, actualPoints[actualPoints.length - 1].date) / totalDays;
-    ctx.lineTo(actualEndX, zeroY);
-    ctx.lineTo(padding.left, zeroY);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(7,148,85,.12)";
-    ctx.fill();
+  });
+
+  ctx.strokeStyle = "#98a2b3"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padding.left, yFor(0)); ctx.lineTo(width - padding.right, yFor(0)); ctx.stroke();
+  const drawTotal = (linePoints, forecast = false) => {
+    if (!linePoints.length) return;
+    ctx.strokeStyle = "#172033"; ctx.lineWidth = 2.5; ctx.setLineDash(forecast ? [7, 5] : []); ctx.beginPath();
+    linePoints.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(xFor(point.date), yFor(point.value)); else ctx.lineTo(xFor(point.date), yFor(point.value));
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  drawTotal(actualPoints); drawTotal(forecastPoints, true);
+
+  if (today >= yearStart && today <= yearEnd) {
+    const todayX = xFor(today);
+    ctx.strokeStyle = "#667085"; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(todayX, padding.top); ctx.lineTo(todayX, height - padding.bottom); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#526174";
+    ctx.fillText("今日", Math.min(width - padding.right - 26, todayX + 4), padding.top + 12);
   }
-
-  drawLine(forecastPoints, true);
-
-  const todayX = padding.left + plotW * diffDays(yearStart, today) / totalDays;
-  ctx.strokeStyle = "#98a2b3";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([3, 4]);
-  ctx.beginPath();
-  ctx.moveTo(todayX, padding.top);
-  ctx.lineTo(todayX, height - padding.bottom);
-  ctx.stroke();
-  ctx.setLineDash([]);
   ctx.fillStyle = "#667085";
-  ctx.fillText("今日", Math.min(width - padding.right - 24, todayX + 5), padding.top + 12);
+  const ticks = width < 500 ? [yearStart, new Date(profitYear, 6, 1), yearEnd] : [yearStart, new Date(profitYear, 3, 1), new Date(profitYear, 6, 1), new Date(profitYear, 9, 1), yearEnd];
+  ticks.forEach(date => {
+    const label = formatDate(date), labelWidth = ctx.measureText(label).width;
+    ctx.fillText(label, Math.min(width - labelWidth - 4, Math.max(padding.left, xFor(date) - labelWidth / 2)), height - 16);
+  });
 
-  const legendX = Math.max(padding.left, width - padding.right - 154);
-  ctx.strokeStyle = "#079455";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(legendX, 12);
-  ctx.lineTo(legendX + 24, 12);
-  ctx.stroke();
-  ctx.fillText("実績", legendX + 30, 16);
-  ctx.setLineDash([7, 5]);
-  ctx.beginPath();
-  ctx.moveTo(legendX + 70, 12);
-  ctx.lineTo(legendX + 94, 12);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillText("予測", legendX + 100, 16);
-
-  ctx.fillStyle = "#667085";
-  [yearStart, new Date(today.getFullYear(), 3, 1), new Date(today.getFullYear(), 6, 1), new Date(today.getFullYear(), 9, 1), yearEnd]
-    .forEach(date => {
-      const x = padding.left + plotW * diffDays(yearStart, date) / totalDays;
-      ctx.fillText(formatDate(date), Math.min(width - 66, Math.max(padding.left - 14, x - 14)), height - 22);
-    });
-
-  const currentProfit = cumulativeProfitOn(today, yearStart, true);
-  const yearEndProfit = cumulativeProfitOn(yearEnd, yearStart, true);
-  document.querySelector("#profitBreakdown").textContent =
-    `今日まで ${formatYen(currentProfit)}｜12月31日予測 ${formatYen(yearEndProfit)}（年内の確定・実現損益と、現在の評価損益を含む）`;
+  const legend = document.querySelector("#profitLegend");
+  legend.replaceChildren();
+  [...PROFIT_SERIES, { key: "total", label: "合計損益（黒線）", color: "#172033" }].forEach(series => {
+    const item = document.createElement("div"); item.className = "profit-legend-item";
+    const label = document.createElement("span"); label.textContent = series.label;
+    label.style.setProperty("--series-color", series.color);
+    const amount = document.createElement("strong"); amount.id = series.key === "total" ? "profitPointTotal" : `profitDetail-${series.key}`;
+    item.append(label, amount); legend.appendChild(item);
+  });
+  profitChartModel = { points, today, width, padding, plotW };
+  showProfitPoint(profitYear === today.getFullYear() ? diffDays(yearStart, today) : points.length - 1);
+  const yearEndProfit = points[points.length - 1].value;
+  const breakdown = document.querySelector("#profitBreakdown");
+  if (profitYear < today.getFullYear()) breakdown.textContent = `${profitYear}年末累計 ${formatYen(yearEndProfit)}（実績）`;
+  else if (profitYear > today.getFullYear()) breakdown.textContent = `${profitYear}年12月31日予測 ${formatYen(yearEndProfit)}`;
+  else breakdown.textContent = `今日まで ${formatYen(points[diffDays(yearStart, today)].value)}｜12月31日予測 ${formatYen(yearEndProfit)}`;
 }
 
 function applyManualUsdRate() {
@@ -1490,3 +1551,11 @@ document.querySelector("#fxYear").addEventListener("change", event => {
   fxYear = Number(event.target.value);
   renderFxLedger();
 });
+
+document.querySelector("#profitYear").addEventListener("change", event => {
+  profitYear = Number(event.target.value);
+  localStorage.setItem("term-deposit-profit-year-v1", String(profitYear));
+  renderProfitChart();
+});
+els.profitChart.addEventListener("pointermove", inspectProfitChart);
+els.profitChart.addEventListener("pointerdown", inspectProfitChart);
