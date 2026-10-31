@@ -1,0 +1,22 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.resolve(__dirname,'..');
+const script=fs.readFileSync(path.join(root,'index.html'),'utf8').match(/<script src="([^"]+)"/)[1];
+const source=fs.readFileSync(path.join(root,script),'utf8').split('els.form.addEventListener("submit"')[0];
+const storage=new Map();
+function create(){const c=vm.createContext({localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},window:{location:{hash:''}},document:{querySelector:()=>({}),querySelectorAll:()=>[]},crypto:{randomUUID:()=> 'test'},Date,Intl});vm.runInContext(source,c);return c;}
+const c=create(),run=s=>vm.runInContext(s,c);
+assert.equal(run('selectedProfitKeys.size'),5);
+run("const point={date:new Date(2026,0,1),values:{interest:200,depositRealized:-50,depositUnrealized:30,fxRealized:-20,fxUnrealized:10},value:170};");
+assert.equal(run("filterProfitPoint(point,new Set(['interest','fxRealized'])).value"),180);
+assert.equal(run("Object.keys(filterProfitPoint(point,new Set(['interest','fxRealized'])).values).length"),2);
+assert.equal(run('point.value'),170);assert.equal(run('Object.keys(point.values).length'),5);
+assert.equal(run('filterProfitPoint(point,new Set()).value'),0);
+assert.equal(run('filterProfitPoint(point).value'),170);
+run("selectedProfitKeys=new Set(['interest','fxRealized']);const filtered=filterProfitPoint(point);const stack=stackProfitValues(filtered.values,selectedProfitSeries());");
+assert.equal(run('stack.positive'),200);assert.equal(run('stack.negative'),-20);assert.equal(run('stack.total'),180);
+run('renderProfitChart=()=>{};saveProfitSelection()');
+let reloaded=create();assert.equal(vm.runInContext('selectedProfitKeys.size',reloaded),2);assert.equal(vm.runInContext("selectedProfitKeys.has('fxRealized')",reloaded),true);
+storage.set('term-deposit-profit-selection-v1','[]');reloaded=create();assert.equal(vm.runInContext('selectedProfitKeys.size',reloaded),0);
+storage.set('term-deposit-profit-selection-v1','["interest","unknown"]');reloaded=create();assert.equal(vm.runInContext('selectedProfitKeys.size',reloaded),1);
+storage.set('term-deposit-profit-selection-v1','invalid');reloaded=create();assert.equal(vm.runInContext('selectedProfitKeys.size',reloaded),5);
+console.log('PASS: subset/net stack reconciliation, untouched raw data, empty/all selection, persisted settings, empty setting restore, unknown/corrupt setting handling');

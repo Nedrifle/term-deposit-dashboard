@@ -23,6 +23,8 @@ const PROFIT_SERIES = [
 let profitYear = Number(localStorage.getItem("term-deposit-profit-year-v1")) || new Date().getFullYear();
 if (!Number.isInteger(profitYear) || profitYear < 1000 || profitYear > 9999) profitYear = new Date().getFullYear();
 let profitChartModel = null;
+const PROFIT_SELECTION_KEY = "term-deposit-profit-selection-v1";
+let selectedProfitKeys = loadProfitSelection();
 const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details", "fx"]);
 let currentView = viewFromHash();
 const state = {
@@ -1010,6 +1012,38 @@ function renderYieldChart() {
     `運用元本合計 ${formatYen(totalPrincipal)}｜平均運用利回り ${averageYield.toFixed(3)}%｜運用中 ${active.length}件${invalidCount ? `｜要確認 ${invalidCount}件` : ""}`;
 }
 
+function loadProfitSelection() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROFIT_SELECTION_KEY));
+    if (Array.isArray(saved)) return new Set(saved.filter(key => PROFIT_SERIES.some(series => series.key === key)));
+  } catch (e) {}
+  return new Set(PROFIT_SERIES.map(series => series.key));
+}
+
+function selectedProfitSeries() {
+  return PROFIT_SERIES.filter(series => selectedProfitKeys.has(series.key));
+}
+
+function filterProfitPoint(point, keys = selectedProfitKeys) {
+  const values = Object.fromEntries(PROFIT_SERIES.filter(series => keys.has(series.key)).map(series => [series.key, point.values[series.key] || 0]));
+  return { date: point.date, values, value: Object.values(values).reduce((sum, value) => sum + value, 0) };
+}
+
+function renderProfitSeriesControls() {
+  document.querySelectorAll("[data-profit-series]").forEach(input => {
+    input.checked = selectedProfitKeys.has(input.dataset.profitSeries);
+    input.closest("label").classList.toggle("selected", input.checked);
+  });
+  document.querySelector("#profitSeriesStatus").textContent = selectedProfitKeys.size
+    ? `${selectedProfitKeys.size}種類を表示中。黒線・集計額・日別内訳は選択した種類の合計です。`
+    : "表示する損益を選択してください。";
+}
+
+function saveProfitSelection() {
+  localStorage.setItem(PROFIT_SELECTION_KEY, JSON.stringify([...selectedProfitKeys]));
+  renderProfitChart();
+}
+
 function availableProfitYears(today = new Date()) {
   const currentYear = dateAtMidnight(today).getFullYear();
   const years = [2026, currentYear, currentYear + 1, profitYear];
@@ -1073,10 +1107,10 @@ function profitChartPoints(yearStart, yearEnd, today = new Date()) {
   return points;
 }
 
-function stackProfitValues(values) {
+function stackProfitValues(values, seriesList = PROFIT_SERIES) {
   let positive = 0, negative = 0;
   const bands = {};
-  PROFIT_SERIES.forEach(series => {
+  seriesList.forEach(series => {
     const value = values[series.key] || 0;
     bands[series.key] = {
       positive: { bottom: positive, top: positive + Math.max(0, value) },
@@ -1094,7 +1128,7 @@ function showProfitPoint(index) {
   const dateText = new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "numeric", day: "numeric" }).format(point.date);
   const status = point.date > profitChartModel.today ? "予測" : "実績";
   document.querySelector("#profitDetailHeading").textContent = `${dateText}の内訳（${status}）`;
-  PROFIT_SERIES.forEach(series => {
+  profitChartModel.series.forEach(series => {
     const element = document.querySelector(`#profitDetail-${series.key}`);
     const value = point.values[series.key];
     element.textContent = formatYen(value);
@@ -1157,6 +1191,8 @@ function renderMonthlyProfit() {
 
 function renderProfitChart() {
   renderMonthlyProfit();
+  renderProfitSeriesControls();
+  const seriesList = selectedProfitSeries();
   const today = dateAtMidnight(new Date());
   const yearSelect = document.querySelector("#profitYear");
   yearSelect.replaceChildren(...availableProfitYears(today).map(year => new Option(`${year}年`, String(year))));
@@ -1178,7 +1214,10 @@ function renderProfitChart() {
   const yearStart = new Date(profitYear, 0, 1);
   const yearEnd = new Date(profitYear, 11, 31);
   const totalDays = Math.max(1, diffDays(yearStart, yearEnd));
-  const points = profitChartPoints(yearStart, yearEnd, today).map(point => ({ ...point, stack: stackProfitValues(point.values) }));
+  const points = profitChartPoints(yearStart, yearEnd, today).map(point => {
+    const filtered = filterProfitPoint(point);
+    return { ...filtered, stack: stackProfitValues(filtered.values, seriesList) };
+  });
   const actualPoints = points.filter(point => point.date <= today);
   const forecastPoints = points.filter(point => point.date >= today);
   const high = Math.max(...points.map(point => point.stack.positive), 1);
@@ -1219,7 +1258,7 @@ function renderProfitChart() {
     }
     ctx.closePath(); ctx.fillStyle = series.color; ctx.globalAlpha = opacity; ctx.fill(); ctx.globalAlpha = 1;
   };
-  PROFIT_SERIES.forEach(series => {
+  seriesList.forEach(series => {
     ["positive", "negative"].forEach(side => {
       drawBand(actualPoints, series, side, 0.78);
       drawBand(forecastPoints, series, side, 0.28);
@@ -1252,16 +1291,22 @@ function renderProfitChart() {
     ctx.fillText(label, Math.min(width - labelWidth - 4, Math.max(padding.left, xFor(date) - labelWidth / 2)), height - 16);
   });
 
+  if (!seriesList.length) {
+    ctx.fillStyle = "#667085";
+    ctx.textAlign = "center";
+    ctx.fillText("表示する損益を選択してください", padding.left + plotW / 2, padding.top + plotH / 2);
+    ctx.textAlign = "start";
+  }
   const legend = document.querySelector("#profitLegend");
   legend.replaceChildren();
-  [...PROFIT_SERIES, { key: "total", label: "合計損益（黒線）", color: "#172033" }].forEach(series => {
+  [...seriesList, { key: "total", label: "選択した損益の合計（黒線）", color: "#172033" }].forEach(series => {
     const item = document.createElement("div"); item.className = "profit-legend-item";
     const label = document.createElement("span"); label.textContent = series.label;
     label.style.setProperty("--series-color", series.color);
     const amount = document.createElement("strong"); amount.id = series.key === "total" ? "profitPointTotal" : `profitDetail-${series.key}`;
     item.append(label, amount); legend.appendChild(item);
   });
-  profitChartModel = { points, today, width, padding, plotW };
+  profitChartModel = { points, today, width, padding, plotW, series: seriesList };
   showProfitPoint(profitYear === today.getFullYear() ? diffDays(yearStart, today) : points.length - 1);
   const yearEndProfit = points[points.length - 1].value;
   const breakdown = document.querySelector("#profitBreakdown");
@@ -1559,3 +1604,18 @@ document.querySelector("#profitYear").addEventListener("change", event => {
 });
 els.profitChart.addEventListener("pointermove", inspectProfitChart);
 els.profitChart.addEventListener("pointerdown", inspectProfitChart);
+
+document.querySelector("#profitSeriesFilter").addEventListener("change", event => {
+  const key = event.target.dataset.profitSeries;
+  if (!PROFIT_SERIES.some(series => series.key === key)) return;
+  if (event.target.checked) selectedProfitKeys.add(key); else selectedProfitKeys.delete(key);
+  saveProfitSelection();
+});
+document.querySelector("#selectAllProfitSeries").addEventListener("click", () => {
+  selectedProfitKeys = new Set(PROFIT_SERIES.map(series => series.key));
+  saveProfitSelection();
+});
+document.querySelector("#clearProfitSeries").addEventListener("click", () => {
+  selectedProfitKeys = new Set();
+  saveProfitSelection();
+});

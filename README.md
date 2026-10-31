@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -87,3 +87,6 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 - 積み上げの種類は税引後利息、預金の確定為替損益、預金の評価損益、FX実現損益、FX未実現損益の5種類です。利益は正側、損失は負側に積み上げ、差し引き合計を黒線で表示します。予測は淡色・破線です。
 - タップ・マウス操作で選択日の種類別内訳と合計を確認できます。
 - 過去年は年末の実績、未来年は年末予測を表示します。評価損益と年月未分類のFX引き継ぎ額は履歴がないため、今年の今日以降にのみ反映し、過去年・未来年に現在額を持ち込みません。確定損益は選択年の満期日、FX実現損益は選択年の月末日で計上します。
+
+## 積み上げグラフの損益種類フィルター
+「表示する損益」のチェックで5種類から任意の組み合わせを選べます。黒線・今日まで／年末の集計・タップ時の内訳も選択した種類のみを合計します。「すべて選択」「すべて解除」に対応し、選択はこの端末に保存されます。年度・保有者を切り替えても選択を維持します。概要カードの金額・月別利息表・元データは変更しません。
