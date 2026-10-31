@@ -1,0 +1,28 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.resolve(__dirname,'..');
+const script=fs.readFileSync(path.join(root,'index.html'),'utf8').match(/<script src="([^"]+)"/)[1];
+const c=vm.createContext({localStorage:{getItem:()=>null},window:{location:{hash:''}},document:{querySelector:()=>({}),querySelectorAll:()=>[]},crypto:{randomUUID:()=> 'test'},Date,Intl});
+vm.runInContext(fs.readFileSync(path.join(root,script),'utf8').split('els.form.addEventListener("submit"')[0],c);
+const run=s=>vm.runInContext(s,c);
+const near=(actual,expected)=>assert(Math.abs(actual-expected)<1e-6,`${actual} != ${expected}`);
+run(`const deposit=normalizeDeposit({currency:'USD',principal:36500,annualRate:10,taxRate:20.315,dayBasis:365,startDate:'2026-01-01',maturityDate:'2026-01-11',initialFxRate:140,fxRate:150,interestReceiptFxRate:143,conversionFxRate:155});state.deposits=[deposit];`);
+near(run('maturityNetInterest(deposit)'),79.685);
+assert.equal(run('interestConversionRate(deposit)'),140);
+near(run("cumulativeInterest('2026-01-01','2026-01-10')"),79.685*140);
+near(run("interestFxGainLoss(deposit,'2026-01-11')"),79.685*15);
+assert.equal(run("interestFxGainLoss(deposit,'2026-01-10')"),0);
+const before=run("cumulativeInterest('2026-01-01','2026-01-10')");
+run('deposit.fxRate=180;deposit.interestReceiptFxRate=170');
+near(run("cumulativeInterest('2026-01-01','2026-01-10')"),before);
+near(run("interestFxGainLoss(deposit,'2026-01-11')"),79.685*15);
+run('deposit.interestReceiptFxRate=0');
+near(run("interestFxGainLoss(deposit,'2026-01-11')"),79.685*15);
+// Baseline interest + realized FX must equal the actual net yen outcome.
+near(run("cumulativeInterest('2026-01-01','2026-01-10') + depositFxBreakdown(state.deposits,'2026-01-11').realized"),36500*(155-140)+79.685*155);
+run('deposit.conversionFxRate=130');
+near(run("interestFxGainLoss(deposit,'2026-01-11')"),-79.685*10);
+run('deposit.conversionFxRate=0');
+assert.equal(run("interestFxGainLoss(deposit,'2026-01-11')"),0);
+assert.equal(run("depositFxBreakdown(state.deposits,'2026-01-11').realized"),0);
+run("deposit.currency='JPY'");assert.equal(run('interestConversionRate(deposit)'),1);assert.equal(run("interestFxGainLoss(deposit,'2026-01-11')"),0);
+console.log('PASS: deposit-date interest basis, stability across current/receipt rates, conversion-date FX gain/loss, pending conversion exclusion, no double counting, JPY unchanged');

@@ -10,9 +10,9 @@ normalizeDeposit({ownerId:'family',currency:'USD',principal:1000,startDate:'2026
 normalizeDeposit({currency:'USD',principal:1000,startDate:'2026-01-01',maturityDate:'2026-02-01',initialFxRate:140,fxRate:155}),
 normalizeDeposit({currency:'USD',principal:1000,startDate:'2027-01-01',maturityDate:'2027-02-01',initialFxRate:140,fxRate:155}),
 normalizeDeposit({currency:'JPY',principal:1000,startDate:'2026-10-01',maturityDate:'2026-11-01'})];`);
-assert.equal(run("depositFxBreakdown(state.deposits,'2026-10-30').realized"),50020);
+assert.equal(run("depositFxBreakdown(state.deposits,'2026-10-30').realized"),50050);
 assert.equal(run("depositFxBreakdown(state.deposits,'2026-10-30').unrealized"),-10000);
-assert.equal(run("fxGainLoss(state.deposits,'2026-10-30')"),40020);
+assert.equal(run("fxGainLoss(state.deposits,'2026-10-30')"),40050);
 run("selectedOwnerId='self'");assert.equal(run("depositFxBreakdown(visibleDeposits(),'2026-10-30').unrealized"),0);
 run("selectedOwnerId='family'");assert.equal(run("depositFxBreakdown(visibleDeposits(),'2026-10-30').realized"),0);
 assert.equal(run("depositFxBreakdown(visibleDeposits(),'2026-10-30').unrealized"),-10000);

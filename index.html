@@ -90,7 +90,7 @@
           <div class="fx-profit-line"><span>ヘッジ・未決済損益</span><strong id="unsettledHedgeFx">¥0</strong></div>
           <div class="fx-profit-line total"><span>合計</span><strong id="fxGainLoss">¥0</strong></div>
         </div>
-        <small style="display:block">満期後に円転レートが未入力の預金は集計対象外です。利息の確定為替差損益には利息受取時レートも必要です。</small>
+        <small style="display:block">満期後に円転レートが未入力の預金は集計対象外です。円転済みの確定損益は、元本と税引後利息の預入時レートからの差額を含みます。</small>
         <small id="fxRateStatus">外貨預金なし</small>
       </article>
       <article class="summary-card featured">
@@ -134,7 +134,7 @@
       <div id="profitBreakdown" class="daily-breakdown"></div>
       <div class="monthly-profit">
         <h3>月ごとの損益（利息分）</h3>
-        <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は年間グラフと同じ換算レートで計算します。</p>
+        <p id="monthlyProfitNote" class="daily-breakdown">税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は満期後も預入時レートで円換算します。円転時との差額は確定為替差損益に含めます。</p>
         <div class="monthly-profit-scroll" tabindex="0" role="region" aria-label="月ごとの損益表" aria-describedby="monthlyProfitNote">
           <table class="monthly-profit-table">
             <caption class="visually-hidden">今年の月別税引後利息の実績と予測</caption>
@@ -300,22 +300,22 @@
         <label>
           預入時レート（1 USD = 円）
           <input id="initialFxRate" required type="number" min="0.000001" step="0.000001" value="1" />
-          <small>預金設定時の為替レート。JPYは1。</small>
+          <small>預金設定時の為替レート。利息の円換算基準に使用します。JPYは1。</small>
         </label>
         <label>
           現在レート（1 USD = 円）
           <input id="fxRate" required type="number" min="0.000001" step="0.000001" value="1" />
-          <small>利息と元本の現在円換算に使用します。</small>
+          <small>運用中の元本評価と為替差損益に使用します。利息は預入時レートで円換算します。</small>
         </label>
         <label>
-          利息受取時の為替レート（1 USD = 円）
+          利息受取時の為替レート（参考・1 USD = 円）
           <input id="interestReceiptFxRate" type="number" min="0.000001" step="0.000001" inputmode="decimal" />
-          <small>満期後の税引後利息の円換算に使用します。</small>
+          <small>参考情報として保存します。利息の円換算・為替差損益の計算には使用しません。</small>
         </label>
         <label>
           円転時為替レート（1 USD = 円）
           <input id="conversionFxRate" type="number" min="0.000001" step="0.000001" inputmode="decimal" />
-          <small>満期後の元本・利息の確定為替差損益に使用します。</small>
+          <small>満期後の元本・税引後利息について、預入時レートからの確定為替差損益を算定します。</small>
         </label>
         <label>
           満期後
@@ -353,7 +353,7 @@
         <div><span>元本</span><strong class="principal-value"></strong></div>
         <div><span>今日の税引後利息</span><strong class="daily-value"></strong></div>
         <div>
-          <span>現在の税引後累計利息</span>
+          <span>現在の税引後累計利息（外貨は預入時レート）</span>
           <strong class="accrued-interest-value"></strong>
         </div>
         <div class="principal-fx-metric">
@@ -382,6 +382,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v27.js"></script>
+  <script src="app-v28.js"></script>
 </body>
 </html>

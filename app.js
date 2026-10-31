@@ -478,12 +478,11 @@ function maturityNetInterest(deposit) {
   return netDailyInterest(deposit) * Math.max(0, diffDays(deposit.startDate, deposit.maturityDate));
 }
 
-function interestConversionRate(deposit, date = new Date()) {
+function interestConversionRate(deposit) {
   if (deposit.currency === "JPY") return 1;
-  if (isMaturedOn(deposit, date) && Number(deposit.interestReceiptFxRate) > 0) {
-    return Number(deposit.interestReceiptFxRate);
-  }
-  return Number(deposit.fxRate || 1);
+  // Keep interest on the deposit-date basis, including after maturity.
+  // Any difference at yen conversion is accounted for as realized FX profit.
+  return Number(deposit.initialFxRate || deposit.fxRate || 1);
 }
 
 function principalValuationRate(deposit, date = new Date()) {
@@ -502,10 +501,9 @@ function principalFxGainLoss(deposit, date = new Date()) {
 
 function interestFxGainLoss(deposit, date = new Date()) {
   if (deposit.currency === "JPY" || !isMaturedOn(deposit, date)) return 0;
-  const receiptRate = Number(deposit.interestReceiptFxRate);
   const conversionRate = Number(deposit.conversionFxRate);
-  if (receiptRate <= 0 || conversionRate <= 0) return 0;
-  return maturityNetInterest(deposit) * (conversionRate - receiptRate);
+  if (conversionRate <= 0) return 0;
+  return maturityNetInterest(deposit) * (conversionRate - interestConversionRate(deposit));
 }
 
 function dailyInterestFor(deposit, date, net = true) {
@@ -602,7 +600,7 @@ function renderSummary() {
   const fxTotal = realizedTotal + unrealizedTotal;
   const foreign = foreignDeposits();
   const maturedForeign = visibleDeposits().filter(d => d.currency === SUPPORTED_FOREIGN_CURRENCY && isMaturedOn(d, today));
-  const settledForeign = maturedForeign.filter(d => Number(d.interestReceiptFxRate) > 0 && Number(d.conversionFxRate) > 0);
+  const settledForeign = maturedForeign.filter(d => Number(d.conversionFxRate) > 0);
   const pendingForeign = maturedForeign.length - settledForeign.length;
   const foreignPrincipal = foreign.reduce((sum, d) => sum + Number(d.principal), 0);
   const averageInitialFxRate = foreignPrincipal > 0
@@ -680,7 +678,7 @@ function renderDeposits() {
     const todayNetNative = isActiveOn(deposit, today) ? netDailyInterest(deposit) : 0;
     const accruedNetNative = accruedNetInterest(deposit, today);
     const matured = isMaturedOn(deposit, today);
-    const interestRate = interestConversionRate(deposit, today);
+    const interestRate = interestConversionRate(deposit);
     const principalRate = principalValuationRate(deposit, today);
     const accruedNetYen = accruedNetNative * interestRate;
     const status = today < start ? "開始前" : matured ? "満期済み" : "運用中";
@@ -688,7 +686,7 @@ function renderDeposits() {
     const rateText = deposit.currency === "JPY"
       ? ""
       : matured
-        ? `｜預入時 ${deposit.initialFxRate}円｜利息受取時 ${Number(deposit.interestReceiptFxRate) > 0 ? `${deposit.interestReceiptFxRate}円` : "未入力"}｜円転時 ${Number(deposit.conversionFxRate) > 0 ? `${deposit.conversionFxRate}円` : "未入力"}`
+        ? `｜預入時 ${deposit.initialFxRate}円｜円転時 ${Number(deposit.conversionFxRate) > 0 ? `${deposit.conversionFxRate}円` : "未入力"}`
         : `｜預入時 ${deposit.initialFxRate}円｜現在 ${deposit.fxRate}円`;
 
     node.querySelector(".currency-badge").textContent = `${deposit.currency}・${status}`;
@@ -712,8 +710,8 @@ function renderDeposits() {
     const interestFxMetric = node.querySelector(".interest-fx-metric");
     const individualInterestFxGainLoss = interestFxGainLoss(deposit, today);
     interestFxMetric.hidden = deposit.currency === "JPY" || !matured;
-    interestFxMetric.querySelector(".interest-fx-value").textContent = Number(deposit.interestReceiptFxRate) <= 0 || Number(deposit.conversionFxRate) <= 0
-      ? "為替レート未入力"
+    interestFxMetric.querySelector(".interest-fx-value").textContent = Number(deposit.conversionFxRate) <= 0
+      ? "円転時レート未入力"
       : formatYen(individualInterestFxGainLoss);
     interestFxMetric.classList.toggle("positive", individualInterestFxGainLoss > 0);
     interestFxMetric.classList.toggle("negative", individualInterestFxGainLoss < 0);
@@ -766,9 +764,8 @@ function renderFxCalculationDetails() {
     const principalReady = started && (!matured || appliedPrincipalRate > 0);
     const principalGain = principalReady ? principalFxGainLoss(deposit, today) : 0;
     const netInterest = maturityNetInterest(deposit);
-    const receiptRate = Number(deposit.interestReceiptFxRate);
     const conversionRate = Number(deposit.conversionFxRate);
-    const interestReady = matured && receiptRate > 0 && conversionRate > 0;
+    const interestReady = matured && conversionRate > 0;
     const interestGain = interestReady ? interestFxGainLoss(deposit, today) : 0;
 
     const row = document.createElement("article");
@@ -796,11 +793,11 @@ function renderFxCalculationDetails() {
 
     const interestDetail = document.createElement("p");
     if (!matured) {
-      interestDetail.textContent = "税引後利息：満期後に利息受取時レートと円転時レートから算定します。";
+      interestDetail.textContent = "税引後利息：預入時レートで円換算し、満期後の円転時に預入時レートとの差額を確定為替差損益に計上します。";
     } else if (!interestReady) {
-      interestDetail.textContent = "税引後利息：利息受取時の為替レートと円転時為替レートを入力してください。";
+      interestDetail.textContent = "税引後利息：円転時為替レートを入力してください（預入時レートとの差額を算定します）。";
     } else {
-      interestDetail.textContent = `税引後利息：${amountText(netInterest)} USD ×（${rateText(conversionRate)}円［円転時］− ${rateText(receiptRate)}円［利息受取時］）＝ ${formatYen(interestGain)}`;
+      interestDetail.textContent = `税引後利息：${amountText(netInterest)} USD ×（${rateText(conversionRate)}円［円転時］− ${rateText(initialRate)}円［預入時］）＝ ${formatYen(interestGain)}`;
     }
 
     const total = document.createElement("p");

@@ -19,7 +19,7 @@ assert.equal(run('maturityNetInterest(deposit)'),310);
 assert.equal(run("monthlyProfitRows(new Date(2026,9,28))[9].total"),310);
 assert.equal(run("monthlyProfitRows(new Date(2026,9,28))[10].total"),0);
 run("deposit.currency='USD';deposit.initialFxRate=140;deposit.fxRate=150;deposit.interestReceiptFxRate=145;deposit.conversionFxRate=146;");
-assert.equal(run("interestConversionRate(deposit,'2026-11-01')"),145);
+assert.equal(run("interestConversionRate(deposit,'2026-11-01')"),140);
 assert.equal(run("principalValuationRate(deposit,'2026-11-01')"),146);
 run("deposit.currency='JPY';deposit.startDate='2024-02-28';deposit.maturityDate='2024-03-01'");
 assert.equal(run("accruedInterestDays(deposit,'2024-02-29')"),2);
