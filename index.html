@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v32.css" />
+  <link rel="stylesheet" href="style-v34.css" />
 </head>
 <body>
   <header class="app-header">
     <div>
       <h1>定期預金 利息ダッシュボード</h1>
-      <small style="display:block;margin-top:5px;color:#d9e4f8">v33 · <a href="./refresh.html" style="color:inherit">画面を更新</a></small>
+      <small style="display:block;margin-top:5px;color:#d9e4f8">v34 · <a href="./refresh.html" style="color:inherit">画面を更新</a></small>
     </div>
     <button id="addDepositButton" class="primary-button">＋ 定期を登録</button>
   </header>
@@ -163,6 +163,23 @@
       <h3 id="profitDetailHeading" class="profit-detail-heading"></h3>
       <div id="profitLegend" class="profit-legend"></div>
       <p class="daily-breakdown">外貨預金の確定為替損益は満期日、FXの実現損益は登録月の月末日に計上します。選択した年の確定・実現損益を集計します。評価損益と年月未分類の引き継ぎ額は今年の今日以降にだけ反映し、予測では現在額を据え置きます。他年の評価損益は履歴がないため含めません。</p>
+      <div class="monthly-profit monthly-yield">
+        <h3 id="monthlyYieldTitle">月ごとの実運用利回り</h3>
+        <p class="daily-breakdown">月次利回り＝（税引後預金利息＋預金の確定為替差損益＋ヘッジ実現損益）÷運用預金平均残高×100。年率換算はしません。年度・保有者に連動し、グラフの損益種類フィルターには連動しません。表は横にスクロールできます。</p>
+        <div class="monthly-profit-scroll" tabindex="0" role="region" aria-label="月ごとの実運用利回りと内訳" aria-describedby="monthlyYieldNote">
+          <table class="monthly-profit-table monthly-yield-table">
+            <caption id="monthlyYieldCaption" class="visually-hidden">月別実運用利回りと計算内訳</caption>
+            <thead><tr><th scope="col">月</th><th scope="col">月次利回り</th><th scope="col">平均残高</th><th scope="col">税引後利息</th><th scope="col">預金確定為替損益</th><th scope="col">ヘッジ実現損益</th><th scope="col">損益合計</th></tr></thead>
+            <tbody id="monthlyYieldBody"></tbody>
+          </table>
+        </div>
+        <details id="monthlyYieldNote" class="monthly-yield-note">
+          <summary>計算方法・集計対象</summary>
+          <p>平均残高＝各日の運用預金元本の円換算額合計÷集計日数。外貨元本は預入時レートで換算し、預入日は含め、満期日は含めません。FX証拠金・余剰資金は含めません。</p>
+          <p>当月は今日までの利息・平均残高で計算します。預金の確定為替損益は満期日、ヘッジ実現損益は登録月の月末日に計上します。未円転の預金・評価損益・FX未実現損益・年月未分類の引き継ぎ額は含めません。</p>
+          <p>未到来の月と平均残高0の月の利回りは「—」と表示します。表は横にスクロールできます。</p>
+        </details>
+      </div>
       <div class="monthly-profit">
         <h3 id="monthlyProfitTitle">月ごとの損益（利息分）</h3>
         <p id="monthlyProfitNote" class="daily-breakdown">損益種類フィルターにかかわらず、税引後利息の全額を表示します。税引後・円換算。実績は今日まで、予測は明日以降の登録済み預金から計算します。預金の為替差損益とFXタブの損益は、この利息表には含みません。外貨利息は満期後も預入時レートで円換算します。円転時との差額は確定為替差損益に含めます。</p>
@@ -413,6 +430,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v33.js"></script>
+  <script src="app-v34.js"></script>
 </body>
 </html>

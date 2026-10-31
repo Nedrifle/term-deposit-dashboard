@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -93,3 +93,11 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 
 ## 損益の確認日を選ぶ
 日付入力欄で選択年内の任意の日を指定し、「前日」「翌日」で1日ずつ移動できます。年初・年末では範囲外へ移動するボタンを無効にします。「今日」は年度を今年に戻して今日を選択します。グラフのタップ・マウス操作も継続でき、選択日には青い縦線と合計損益の点を表示します。損益種類・保有者の切り替えや画面サイズ変更でも選択日は維持します。年度を変えた場合は同じ月日を選び、2月29日がない年は2月28日に合わせます。
+
+## 月ごとの実運用利回り
+- 概要の累計損益パネルで、選択年・保有者の月次利回りと内訳を表示します。損益種類チェックの影響は受けません。
+- 月次利回り（%）＝（税引後預金利息＋預金の確定為替差損益＋ヘッジ実現損益）÷運用預金平均残高×100。年率には換算しません。
+- 平均残高は、各日の運用預金元本を合算した日次残高の合計÷集計日数です。月途中の預入・満期を日数加重し、預入日は含め、満期日は含めません。外貨元本は預入時レートで円換算します。預金のない日も平均の分母の日数に含めます。FX証拠金・余剰資金は含めません。
+- 過去の月は全日数、当月は今日までで計算します。預金確定為替損益は満期日に、FXタブの月別実現損益は月末日に計上します。したがって当月のヘッジ実現損益は月末になるまで含めません。
+- 預金の評価損益・未円転預金の差損益・FX未実現損益・年月未分類の引き継ぎ額は含めません。利息は預入時レートで円換算し、確定為替損益には元本と税引後利息の円転時との差額を含めます。
+- 未到来月と平均残高0の月は利回りを「—」で表示します。平均残高0でも、その月に計上される損益は内訳に表示します。

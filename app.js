@@ -1245,6 +1245,68 @@ function renderMonthlyProfit() {
   });
 }
 
+function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(today).getFullYear()) {
+  const current = dateAtMidnight(today);
+  const deposits = visibleDeposits();
+  return Array.from({ length: 12 }, (_, month) => {
+    const start = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0);
+    const end = new Date(Math.min(current, monthEnd));
+    if (start > current) return { month: month + 1, elapsedDays: 0, interest: 0, depositFx: 0, hedgeRealized: 0, profit: 0, averageBalance: null, rate: null, future: true, partial: false };
+    const elapsedDays = diffDays(start, end) + 1;
+    const endExclusive = addDays(end, 1);
+    let interest = 0, balanceDays = 0, depositFx = 0;
+    deposits.forEach(deposit => {
+      const heldStart = new Date(Math.max(start, dateAtMidnight(deposit.startDate)));
+      const heldEnd = new Date(Math.min(endExclusive, dateAtMidnight(deposit.maturityDate)));
+      const heldDays = Math.max(0, diffDays(heldStart, heldEnd));
+      balanceDays += convertToInitialYen(Number(deposit.principal), deposit) * heldDays;
+      interest += netDailyInterest(deposit) * interestConversionRate(deposit) * heldDays;
+      const maturity = dateAtMidnight(deposit.maturityDate);
+      if (deposit.currency === SUPPORTED_FOREIGN_CURRENCY && maturity >= start && maturity <= end) {
+        depositFx += principalFxGainLoss(deposit, maturity) + interestFxGainLoss(deposit, maturity);
+      }
+    });
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    // The ledger recognizes realized FX profit on month end. Undated legacy
+    // amounts and current unrealized snapshots have no monthly attribution.
+    const hedgeRealized = year >= 2026 && monthEnd <= end ? fxScopeOwners().reduce((sum, owner) => {
+      return sum + Object.values(fxOwnerData(owner.id).realized[monthKey] || {}).reduce((companySum, value) => companySum + (Number(value) || 0), 0);
+    }, 0) : 0;
+    const profit = interest + depositFx + hedgeRealized;
+    const averageBalance = balanceDays / elapsedDays;
+    return { month: month + 1, elapsedDays, interest, depositFx, hedgeRealized, profit, averageBalance,
+      rate: averageBalance > 0 ? profit / averageBalance * 100 : null,
+      future: false, partial: end < monthEnd };
+  });
+}
+
+function renderMonthlyOperatingYield() {
+  document.querySelector("#monthlyYieldTitle").textContent = `${profitYear}年 月ごとの実運用利回り`;
+  document.querySelector("#monthlyYieldCaption").textContent = `${profitYear}年の月別実運用利回りと計算内訳`;
+  const body = document.querySelector("#monthlyYieldBody");
+  body.replaceChildren();
+  monthlyOperatingYieldRows(new Date(), profitYear).forEach(row => {
+    const tr = document.createElement("tr");
+    const label = document.createElement("th"); label.scope = "row"; label.textContent = `${row.month}月`;
+    const status = document.createElement("small");
+    status.textContent = row.future ? "未到来" : row.partial ? `今日まで・${row.elapsedDays}日間` : `実績・${row.elapsedDays}日間`;
+    label.appendChild(status); tr.appendChild(label);
+    const rate = document.createElement("td"); rate.className = "monthly-yield-rate";
+    rate.textContent = row.rate === null ? "—" : `${new Intl.NumberFormat("ja-JP", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(row.rate)}%`;
+    rate.classList.toggle("negative", row.rate !== null && row.rate < 0);
+    if (!row.future && row.averageBalance === 0) rate.title = "平均残高が0のため利回りを計算できません。";
+    tr.appendChild(rate);
+    ["averageBalance", "interest", "depositFx", "hedgeRealized", "profit"].forEach(key => {
+      const td = document.createElement("td");
+      td.textContent = row.future ? "—" : formatYen(row[key]);
+      td.classList.toggle("negative", !row.future && row[key] < 0);
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
 function renderProfitChart() {
   // Keep the controls below the chart even if older markup is restored.
   const chartShell = els.profitChart.closest(".chart-shell");
@@ -1253,6 +1315,7 @@ function renderProfitChart() {
   if (chartShell && dateControls && chartShell.nextElementSibling !== dateControls) chartShell.after(dateControls);
   if (dateControls && dateHelp && dateControls.nextElementSibling !== dateHelp) dateControls.after(dateHelp);
   renderMonthlyProfit();
+  renderMonthlyOperatingYield();
   renderProfitSeriesControls();
   const seriesList = selectedProfitSeries();
   const today = dateAtMidnight(new Date());
