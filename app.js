@@ -24,6 +24,9 @@ let profitYear = Number(localStorage.getItem("term-deposit-profit-year-v1")) || 
 if (!Number.isInteger(profitYear) || profitYear < 1000 || profitYear > 9999) profitYear = new Date().getFullYear();
 let profitChartModel = null;
 let profitDetailDate = null;
+const YIELD_CURRENCY_STORAGE_KEY = "term-deposit-yield-currency-v1";
+let yieldCurrency = localStorage.getItem(YIELD_CURRENCY_STORAGE_KEY) || "all";
+if (!["JPY", "USD", "all"].includes(yieldCurrency)) yieldCurrency = "all";
 const PROFIT_SELECTION_KEY = "term-deposit-profit-selection-v1";
 let selectedProfitKeys = loadProfitSelection();
 const APP_VIEWS = new Set(["dashboard", "active", "matured", "fx-details", "fx"]);
@@ -1245,9 +1248,10 @@ function renderMonthlyProfit() {
   });
 }
 
-function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(today).getFullYear()) {
+function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(today).getFullYear(), currency = "all") {
   const current = dateAtMidnight(today);
-  const deposits = visibleDeposits();
+  if (!["JPY", "USD", "all"].includes(currency)) currency = "all";
+  const deposits = visibleDeposits().filter(deposit => currency === "all" || deposit.currency === currency);
   return Array.from({ length: 12 }, (_, month) => {
     const start = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
@@ -1270,7 +1274,7 @@ function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(tod
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     // The ledger recognizes realized FX profit on month end. Undated legacy
     // amounts and current unrealized snapshots have no monthly attribution.
-    const hedgeRealized = year >= 2026 && monthEnd <= end ? fxScopeOwners().reduce((sum, owner) => {
+    const hedgeRealized = currency !== "JPY" && year >= 2026 && monthEnd <= end ? fxScopeOwners().reduce((sum, owner) => {
       return sum + Object.values(fxOwnerData(owner.id).realized[monthKey] || {}).reduce((companySum, value) => companySum + (Number(value) || 0), 0);
     }, 0) : 0;
     const profit = interest + depositFx + hedgeRealized;
@@ -1282,11 +1286,18 @@ function monthlyOperatingYieldRows(today = new Date(), year = dateAtMidnight(tod
 }
 
 function renderMonthlyOperatingYield() {
+  const currencyLabel = yieldCurrency === "all" ? "合計" : yieldCurrency;
+  document.querySelector("#yieldCurrency").value = yieldCurrency;
+  document.querySelector("#yieldCurrencyNote").textContent = yieldCurrency === "JPY"
+    ? "JPY預金のみで計算します。預金の為替差損益・ヘッジ実現損益は含めません。"
+    : yieldCurrency === "USD"
+      ? "USD預金のみを預入時レートで円換算し、ヘッジ実現損益を含めて計算します。"
+      : "全登録通貨の預金とヘッジ実現損益を合算して計算します。すべて円換算です。";
   document.querySelector("#monthlyYieldTitle").textContent = `${profitYear}年 月ごとの実運用利回り（年率換算）`;
-  document.querySelector("#monthlyYieldCaption").textContent = `${profitYear}年の月別年率換算利回りと計算内訳`;
+  document.querySelector("#monthlyYieldCaption").textContent = `${profitYear}年 ${currencyLabel}の月別年率換算利回りと計算内訳`;
   const body = document.querySelector("#monthlyYieldBody");
   body.replaceChildren();
-  monthlyOperatingYieldRows(new Date(), profitYear).forEach(row => {
+  monthlyOperatingYieldRows(new Date(), profitYear, yieldCurrency).forEach(row => {
     const tr = document.createElement("tr");
     const label = document.createElement("th"); label.scope = "row"; label.textContent = `${row.month}月`;
     const status = document.createElement("small");
@@ -1769,4 +1780,10 @@ document.querySelector("#profitToday").addEventListener("click", () => {
   profitYear = profitDetailDate.getFullYear();
   localStorage.setItem("term-deposit-profit-year-v1", String(profitYear));
   renderProfitChart();
+});
+
+document.querySelector("#yieldCurrency").addEventListener("change", event => {
+  yieldCurrency = event.target.value;
+  localStorage.setItem(YIELD_CURRENCY_STORAGE_KEY, yieldCurrency);
+  renderMonthlyOperatingYield();
 });

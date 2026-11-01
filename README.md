@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs`、`node tests/yield-currency.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -101,3 +101,9 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 - 過去の月はその月の全日数、当月は今日までの日数を使って年率換算します。預金確定為替損益は満期日に、FXタブの月別実現損益は月末日に計上します。したがって当月のヘッジ実現損益は月末になるまで含めません。
 - 預金の評価損益・未円転預金の差損益・FX未実現損益・年月未分類の引き継ぎ額は含めません。利息は預入時レートで円換算し、確定為替損益には元本と税引後利息の円転時との差額を含めます。
 - 未到来月と平均残高0の月は利回りを「—」で表示します。平均残高0でも、その月に計上される損益は内訳に表示します。
+
+## 利回り表の通貨フィルター
+- 利回り表だけを「JPY」「USD」「合計」で切り替えできます。初期表示は合計で、選択はこの端末に保存します。年度・保有者の切り替えでも維持し、累計損益グラフや月別利息表の表示には影響しません。
+- JPYは円預金の利息と平均残高、USDは米ドル預金の利息・確定為替損益・ヘッジ実現損益と平均残高で計算します。USDの金額は預入時レート基準の円換算です。
+- ヘッジ実現損益はUSDと合計に含め、JPYには含めません。USD預金の平均残高が0の月は、ヘッジ損益があってもUSDの利回りは「—」です。
+- 合計は各通貨の損益・平均残高を合算してから年率換算します。通貨別利回りの単純平均ではありません。合計には既存データの他通貨も含みます。
