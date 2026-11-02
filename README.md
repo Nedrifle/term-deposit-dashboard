@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs`、`node tests/yield-currency.cjs`、`node tests/deposit-apy.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs`、`node tests/yield-currency.cjs`、`node tests/deposit-annual-yield.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -108,10 +108,8 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 - ヘッジ実現損益はUSDと合計に含め、JPYには含めません。USD預金の平均残高が0の月は、ヘッジ損益があってもUSDの利回りは「—」です。
 - 合計は各通貨の損益・平均残高を合算してから年率換算します。通貨別利回りの単純平均ではありません。合計には既存データの他通貨も含みます。
 
-## 外貨預金カードの円転後APY
-- 満期済みで円転時レートが入力済みの外貨預金に、「円転後APY（為替込み）」を表示します。未円転・運用中は「円転後に算定」、円預金には表示しません。
-- APY（%）＝｛［（元本＋税引後満期利息）×円転時レート÷（元本×預入時レート）］^(365÷運用日数) − 1｝×100。元本と利息の為替差損益を含む円ベース総収益の複利年率換算です。
+## 外貨預金カードの円転後利回り
+- 満期済みで円転時レートが入力済みの外貨預金に、「円転後利回り（為替込み・年率）」を表示します。未円転・運用中は「円転後に算定」、円預金には表示しません。
+- 年率利回り（%）＝［（元本＋税引後満期利息）×円転時レート÷（元本×預入時レート）− 1］×365÷運用日数×100。元本と利息の為替差損益を含む円ベース総収益の単利年率換算です。
 - 運用日数は預入日から満期日までの差で、実際の円転日は保存していないため、円転が満期より後でも満期までの期間を使います。
-- 利息は登録税率で控除後の金額を使います。為替差損益への税金やFXヘッジ損益は別途加減算しません。現在レート・利息受取時レートの変更はAPYに影響しません。
-- 月別利回り表の単利年率とは別の指標で、銀行の提示するAPYや将来の運用利回りを示すものではありません。
-- [CFPBのAPY複利換算式](https://www.consumerfinance.gov/rules-policy/regulations/1030/a/)を参考に、アプリ独自に為替差損益を含む円ベース総収益へ適用しています。
+- 利息は登録税率で控除後の金額を使います。為替差損益への税金やFXヘッジ損益は別途加減算しません。現在レート・利息受取時レートの変更はこの利回りに影響しません。
