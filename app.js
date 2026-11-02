@@ -522,6 +522,21 @@ function interestFxGainLoss(deposit, date = new Date()) {
   return maturityNetInterest(deposit) * (conversionRate - interestConversionRate(deposit));
 }
 
+function realizedDepositApy(deposit, date = new Date()) {
+  if (deposit.currency === "JPY" || !isMaturedOn(deposit, date)) return null;
+  const days = diffDays(deposit.startDate, deposit.maturityDate);
+  const principal = Number(deposit.principal);
+  const initialRate = Number(deposit.initialFxRate);
+  const conversionRate = Number(deposit.conversionFxRate);
+  if (!Number.isFinite(days) || days <= 0 || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(initialRate) || initialRate <= 0 || !Number.isFinite(conversionRate) || conversionRate <= 0) return null;
+  const investedYen = principal * initialRate;
+  const receivedYen = (principal + maturityNetInterest(deposit)) * conversionRate;
+  const multiple = receivedYen / investedYen;
+  if (!Number.isFinite(multiple) || multiple <= 0) return null;
+  const apy = Math.expm1(Math.log(multiple) * 365 / days) * 100;
+  return Number.isFinite(apy) ? apy : null;
+}
+
 function dailyInterestFor(deposit, date, net = true) {
   if (!isActiveOn(deposit, date)) return 0;
   const native = net ? netDailyInterest(deposit) : grossDailyInterest(deposit);
@@ -734,6 +749,14 @@ function renderDeposits() {
     node.querySelector(".maturity-interest-value").textContent = deposit.currency === "JPY"
       ? formatYen(netAtMaturity)
       : `${formatNative(netAtMaturity, deposit.currency)}（${formatYen(netAtMaturity * interestRate)}）`;
+    const apyMetric = node.querySelector(".apy-metric");
+    apyMetric.hidden = deposit.currency === "JPY";
+    const apy = realizedDepositApy(deposit, today);
+    apyMetric.querySelector(".apy-value").textContent = apy === null
+      ? !matured || Number(deposit.conversionFxRate) <= 0 ? "円転後に算定" : "算定不可"
+      : `${new Intl.NumberFormat("ja-JP", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(apy)}%`;
+    apyMetric.classList.toggle("positive", apy !== null && apy > 0);
+    apyMetric.classList.toggle("negative", apy !== null && apy < 0);
     node.querySelector(".remaining-days").textContent = remaining;
     node.querySelector(".progress-bar").style.width = `${progress}%`;
     node.querySelector(".deposit-note").textContent =

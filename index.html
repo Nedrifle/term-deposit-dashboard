@@ -6,13 +6,13 @@
   <meta name="theme-color" content="#101827" />
   <title>定期預金 利息ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style-v34.css" />
+  <link rel="stylesheet" href="style-v37.css" />
 </head>
 <body>
   <header class="app-header">
     <div>
       <h1>定期預金 利息ダッシュボード</h1>
-      <small style="display:block;margin-top:5px;color:#d9e4f8">v36 · <a href="./refresh.html" style="color:inherit">画面を更新</a></small>
+      <small style="display:block;margin-top:5px;color:#d9e4f8">v37 · <a href="./refresh.html" style="color:inherit">画面を更新</a></small>
     </div>
     <button id="addDepositButton" class="primary-button">＋ 定期を登録</button>
   </header>
@@ -415,6 +415,11 @@
           <strong class="interest-fx-value"></strong>
         </div>
         <div><span>満期利息</span><strong class="maturity-interest-value"></strong></div>
+        <div class="apy-metric">
+          <span>円転後APY（為替込み）</span>
+          <strong class="apy-value"></strong>
+          <small class="apy-note" title="APY＝｛［（元本＋税引後満期利息）×円転時レート÷（元本×預入時レート）］の（365÷運用日数）乗－1｝×100。運用日数は預入日〜満期日です。">税引後利息ベース・複利年率換算<br />預入〜満期の実績ベース</small>
+        </div>
         <div><span>満期まで</span><strong class="remaining-days"></strong></div>
       </div>
       <div class="progress-track"><div class="progress-bar"></div></div>
@@ -432,6 +437,6 @@
       caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
     }
   </script>
-  <script src="app-v36.js"></script>
+  <script src="app-v37.js"></script>
 </body>
 </html>
