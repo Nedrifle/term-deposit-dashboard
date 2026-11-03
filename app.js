@@ -537,6 +537,20 @@ function realizedDepositAnnualYield(deposit, date = new Date()) {
   return Number.isFinite(annualYield) ? annualYield : null;
 }
 
+function provisionalDepositAnnualYield(deposit, date = new Date()) {
+  if (deposit.currency === "JPY" || !isHeldOn(deposit, date)) return null;
+  const days = diffDays(deposit.startDate, deposit.maturityDate);
+  const principal = Number(deposit.principal);
+  const initialRate = Number(deposit.initialFxRate);
+  const currentRate = Number(deposit.fxRate);
+  if (!Number.isFinite(days) || days <= 0 || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(initialRate) || initialRate <= 0 || !Number.isFinite(currentRate) || currentRate <= 0) return null;
+  const investedYen = principal * initialRate;
+  const plannedInterestYen = maturityNetInterest(deposit) * initialRate;
+  const principalFx = principal * (currentRate - initialRate);
+  const annualYield = (plannedInterestYen + principalFx) / investedYen * 365 / days * 100;
+  return Number.isFinite(annualYield) ? annualYield : null;
+}
+
 function dailyInterestFor(deposit, date, net = true) {
   if (!isActiveOn(deposit, date)) return 0;
   const native = net ? netDailyInterest(deposit) : grossDailyInterest(deposit);
@@ -751,9 +765,16 @@ function renderDeposits() {
       : `${formatNative(netAtMaturity, deposit.currency)}（${formatYen(netAtMaturity * interestRate)}）`;
     const yieldMetric = node.querySelector(".realized-yield-metric");
     yieldMetric.hidden = deposit.currency === "JPY";
-    const annualYield = realizedDepositAnnualYield(deposit, today);
+    yieldMetric.querySelector(".deposit-yield-label").textContent = matured
+      ? "円転後利回り（為替込み・年率）" : "暫定利回り（為替込み・年率）";
+    const annualYield = matured ? realizedDepositAnnualYield(deposit, today) : provisionalDepositAnnualYield(deposit, today);
+    if (!matured) {
+      const note = yieldMetric.querySelector(".realized-yield-note");
+      note.textContent = "税引後予定利息＋元本の評価損益\n単利年率換算・利息の為替差損益は除外";
+      note.title = "暫定年率＝（税引後満期予定利息×預入時レート＋元本×［現在レート－預入時レート］）÷（元本×預入時レート）×365÷運用日数×100。運用日数は預入日〜満期日です。";
+    }
     yieldMetric.querySelector(".realized-yield-value").textContent = annualYield === null
-      ? !matured || Number(deposit.conversionFxRate) <= 0 ? "円転後に算定" : "算定不可"
+      ? !matured && today < start ? "運用開始後に算定" : matured && Number(deposit.conversionFxRate) <= 0 ? "円転後に算定" : "算定不可"
       : `${new Intl.NumberFormat("ja-JP", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(annualYield)}%`;
     yieldMetric.classList.toggle("positive", annualYield !== null && annualYield > 0);
     yieldMetric.classList.toggle("negative", annualYield !== null && annualYield < 0);

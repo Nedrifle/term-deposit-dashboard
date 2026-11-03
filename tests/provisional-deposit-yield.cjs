@@ -1,0 +1,23 @@
+const vm=require('vm'),fs=require('fs'),assert=require('assert'),path=require('path');
+const root=path.resolve(__dirname,'..');
+const script=fs.readFileSync(path.join(root,'index.html'),'utf8').match(/<script src="([^"]+)"/)[1];
+const c=vm.createContext({localStorage:{getItem:()=>null},window:{location:{hash:''}},document:{querySelector:()=>({}),querySelectorAll:()=>[]},crypto:{randomUUID:()=> 'test'},Date,Intl});
+vm.runInContext(fs.readFileSync(path.join(root,script),'utf8').split('els.form.addEventListener("submit"')[0],c);
+const run=s=>vm.runInContext(s,c),near=(a,b)=>assert(Math.abs(a-b)<1e-7,`${a} != ${b}`);
+run(`const deposit=normalizeDeposit({currency:'USD',principal:10000,annualRate:10,taxRate:0,startDate:'2025-01-01',maturityDate:'2026-01-01',initialFxRate:100,fxRate:110,conversionFxRate:110});`);
+near(run("provisionalDepositAnnualYield(deposit,'2025-06-01')"),20);
+near(run("provisionalDepositAnnualYield(deposit,'2025-01-01')"),20);
+near(run("provisionalDepositAnnualYield(deposit,'2025-12-31')"),20);
+// Once converted, interest FX is added; the active estimate intentionally omits it.
+near(run("realizedDepositAnnualYield(deposit,'2026-01-01')"),21);
+assert.equal(run("provisionalDepositAnnualYield(deposit,'2026-01-01')"),null);
+assert.equal(run("provisionalDepositAnnualYield(deposit,'2024-12-31')"),null);
+run('deposit.conversionFxRate=999;deposit.interestReceiptFxRate=999');near(run("provisionalDepositAnnualYield(deposit,'2025-06-01')"),20);
+run('deposit.fxRate=120');near(run("provisionalDepositAnnualYield(deposit,'2025-06-01')"),30);
+run('deposit.fxRate=80');near(run("provisionalDepositAnnualYield(deposit,'2025-06-01')"),-10);
+run('deposit.fxRate=110;deposit.taxRate=20.315');near(run("provisionalDepositAnnualYield(deposit,'2025-06-01')"),17.9685);
+run("deposit.startDate='2026-01-01';deposit.maturityDate='2026-01-31';deposit.annualRate=3.65;deposit.taxRate=0;deposit.fxRate=101");near(run("provisionalDepositAnnualYield(deposit,'2026-01-10')"),13000/1000000*365/30*100);
+run('deposit.fxRate=0');assert.equal(run("provisionalDepositAnnualYield(deposit,'2026-01-10')"),null);
+run('deposit.fxRate=101;deposit.principal=0');assert.equal(run("provisionalDepositAnnualYield(deposit,'2026-01-10')"),null);
+run("deposit.principal=10000;deposit.currency='JPY'");assert.equal(run("provisionalDepositAnnualYield(deposit,'2026-01-10')"),null);
+console.log('PASS: full-term planned net interest at initial rate plus current principal FX only, simple annualization, no interest FX/receipt/conversion rates, full-term not elapsed days, tax, loss, current-rate updates, maturity/future/JPY/invalid guards');

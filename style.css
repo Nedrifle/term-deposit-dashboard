@@ -142,3 +142,5 @@ dialog form{padding:22px}
 .monthly-yield-table{min-width:820px}.monthly-yield-table th:first-child{position:sticky;left:0;z-index:1;background:#f2f6fc;min-width:95px}.monthly-yield-table .monthly-yield-rate{font-weight:800;font-size:15px}.monthly-yield-table .negative{color:#b42318}.monthly-yield-note{margin-top:10px;font-size:12px;color:#667085}.monthly-yield-note summary{cursor:pointer;font-weight:700}.monthly-yield-note p{margin:7px 0}
 
 .realized-yield-metric .realized-yield-value{overflow-wrap:anywhere}.deposit-metrics .realized-yield-metric.positive strong{color:#087443}.deposit-metrics .realized-yield-metric.negative strong{color:#b42318}.realized-yield-note{display:block;margin-top:5px;color:#667085;font-size:10px;font-weight:400;line-height:1.5}
+
+.realized-yield-note{white-space:pre-line}

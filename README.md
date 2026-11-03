@@ -67,7 +67,7 @@ Safariで開いて「共有」→「ホーム画面に追加」を選びます�
 - 預金のCSVバックアップにはFX損益・FX会社のデータは含まれません。
 
 ## 回帰テスト
-Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs`、`node tests/yield-currency.cjs`、`node tests/deposit-annual-yield.cjs` を実行できます。
+Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`、`node tests/fx-ledger.cjs`、`node tests/interest-fx-basis.cjs`、`node tests/dated-profit.cjs`、`node tests/profit-stack.cjs`、`node tests/profit-selection.cjs`、`node tests/profit-date.cjs`、`node tests/monthly-yield.cjs`、`node tests/yield-currency.cjs`、`node tests/deposit-annual-yield.cjs`、`node tests/provisional-deposit-yield.cjs` を実行できます。
 
 ## 外貨利息と為替差損益の円換算
 - 日次・累計・満期予定利息、年間グラフ、月別表の外貨利息は、満期後も預入時レートを使用します。現在レートの更新で利息の円換算額は変わりません。
@@ -109,7 +109,13 @@ Node.jsで `node tests/interest-boundaries.cjs`、`node tests/fx-breakdown.cjs`�
 - 合計は各通貨の損益・平均残高を合算してから年率換算します。通貨別利回りの単純平均ではありません。合計には既存データの他通貨も含みます。
 
 ## 外貨預金カードの円転後利回り
-- 満期済みで円転時レートが入力済みの外貨預金に、「円転後利回り（為替込み・年率）」を表示します。未円転・運用中は「円転後に算定」、円預金には表示しません。
+- 満期済みで円転時レートが入力済みの外貨預金に、「円転後利回り（為替込み・年率）」を表示します。満期後に未円転の場合は「円転後に算定」、運用中は下記の暫定利回りを表示し、円預金には表示しません。
 - 年率利回り（%）＝［（元本＋税引後満期利息）×円転時レート÷（元本×預入時レート）− 1］×365÷運用日数×100。元本と利息の為替差損益を含む円ベース総収益の単利年率換算です。
 - 運用日数は預入日から満期日までの差で、実際の円転日は保存していないため、円転が満期より後でも満期までの期間を使います。
 - 利息は登録税率で控除後の金額を使います。為替差損益への税金やFXヘッジ損益は別途加減算しません。現在レート・利息受取時レートの変更はこの利回りに影響しません。
+
+## 運用中の外貨預金カードの暫定利回り
+- 運用中の外貨預金は「暫定利回り（為替込み・年率）」を表示します。
+- 期間利回り＝［税引後満期予定利息×預入時レート＋元本×（現在レート−預入時レート）］÷（元本×預入時レート）。これに365÷預入日から満期日までの日数×100を掛けて、単利年率（%）に換算します。経過日数ではなく、預入〜満期の全期間を使います。
+- 利息の為替差損益は暫定利回りに含めず、元本の現在評価差額だけを含めます。円転時・利息受取時レートやFXヘッジ損益は、この暫定利回りには使いません。現在レートを更新すると再計算します。
+- 預入日は運用開始済みとして算定し、満期日当日からは従来の円転後利回りへ切り替えます。開始前は「運用開始後に算定」、満期後で円転レート未入力の場合は「円転後に算定」です。
